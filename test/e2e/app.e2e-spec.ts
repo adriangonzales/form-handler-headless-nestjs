@@ -1,7 +1,7 @@
-import type { NestExpressApplication } from '@nestjs/platform-express';
 import request from 'supertest';
 import type { App } from 'supertest/types';
-import { createHttpApp } from './support/create-http-app';
+import { createApp, type TestApp } from '../support/create-app';
+import { probeImports } from '../support/probe.module';
 
 interface ProbeGetBody {
   query: unknown;
@@ -10,16 +10,16 @@ interface ProbeGetBody {
 }
 
 describe('HTTP app setup (ch. 1)', () => {
-  let app: NestExpressApplication;
+  let testApp: TestApp;
   let server: App;
 
   beforeAll(async () => {
-    app = await createHttpApp();
-    server = app.getHttpServer();
+    testApp = await createApp({ imports: probeImports });
+    server = testApp.http;
   });
 
   afterAll(async () => {
-    await app.close();
+    await testApp.close();
   });
 
   describe('root routes', () => {
@@ -177,9 +177,12 @@ describe('trusted proxies (ch. 1 §1.4)', () => {
   ])(
     'TRUSTED_PROXIES=%j with X-Forwarded-For: 1.1.1.1, 2.2.2.2',
     async (trusted, ips, ip) => {
-      const app = await createHttpApp({ TRUSTED_PROXIES: trusted });
+      const app = await createApp({
+        env: { TRUSTED_PROXIES: trusted },
+        imports: probeImports,
+      });
       try {
-        const res = await request(app.getHttpServer() as App)
+        const res = await request(app.http)
           .get('/api/v1/probe')
           .set('X-Forwarded-For', '1.1.1.1, 2.2.2.2')
           .expect(200);

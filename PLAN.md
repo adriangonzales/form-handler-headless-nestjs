@@ -19,12 +19,12 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 ## Phase 0: Test harness (built alongside phases 1–3)
 
-- [ ] `Clock` / `FakeClock` with `travel(ms)`. No Jest fake timers (ch. 7 §7.1)
-- [ ] `createApp()`: in-memory SQLite (`synchronize: true`), fake mail transport, fake `JevClient`, in-memory storage disk, `FakeClock`
-- [ ] `createApp({ db: 'postgres' })` variant that applies the migrations, for the CI Postgres run
+- [x] `Clock` / `FakeClock` with `travel(ms)`. No Jest fake timers (ch. 7 §7.1)
+- [~] `createApp()` (`test/support/create-app.ts`): in-memory SQLite (`synchronize: true`) and `FakeClock` done; fake mail transport, fake `JevClient` and in-memory storage disk to add with their phases
+- [x] Postgres variant (`DB_TYPE=postgres`): drops the schema and applies the migrations; run with `--runInBand`
 - [ ] `JobDispatcher` bindings: `SyncJobDispatcher` and `FakeJobDispatcher` (ch. 6 §6.2)
 - [ ] `actingAs(user)`: a stub until phase 4, then the real signer with the right `tv`
-- [ ] Factories that persist through repositories and set `id` explicitly (ch. 2 §2.1, §2.5)
+- [x] Factories that persist through repositories and set `id` explicitly (ch. 2 §2.1, §2.5), in `src/database/factories/`
 
 ## Phase 1: Setup and structure (ch. 1)
 
@@ -53,19 +53,19 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 ## Phase 2: Data model (ch. 2)
 
-- [ ] Review the Laravel diff `6a0fb33..HEAD` for model and migration changes
-- [ ] `UlidEntity` / `SoftDeletableUlidEntity`: lowercase ULIDs, `timestamp(0)`, timestamps set from the `Clock`, soft delete as an update
-- [ ] Entities: User, PasswordResetToken, DeniedToken, Form, FormEntry, FormNotification, FormEntryExport
-- [ ] `spam_score` transformer: rounds to 2 decimals on write, reads back as a number
-- [ ] `jsonColumnType()`: `simple-json` on SQLite, `json` (not `jsonb`) on Postgres
-- [ ] `withSettingsDefaults()` helper and `orderedSchema()` (stable sort)
-- [ ] Route IDs: invalid ULID → 404; exact, case-sensitive match (production is SQLite `BINARY`)
-- [ ] Hand-written migrations, one per table, in this order: users → password_reset_tokens → denied_tokens → forms → form_entries → form_notifications → form_entry_exports. Laravel's table and column names
-- [ ] Factories with the `active()` / `inactive()` states and `withBasicSchema`
-- [ ] Seed: Test User plus 5 forms, 5 entries and 5 notifications
+- [x] Review the Laravel diff `6a0fb33..HEAD` for model and migration changes (only `spam_score` `decimal(3,2)` rounded on set, and the `active` default; both already in the guide)
+- [x] `UlidEntity` / `SoftDeletableUlidEntity`: lowercase ULIDs, `timestamp(0)`, timestamps set from the `Clock` (`TimestampSubscriber`), soft delete as an update
+- [x] Entities: User, PasswordResetToken, DeniedToken, Form, FormEntry, FormNotification, FormEntryExport
+- [x] `spam_score` transformer: rounds to 2 decimals on write (`phpRound`, matching PHP's `round()`), reads back as a number
+- [x] `jsonColumnType()`: `simple-json` on SQLite, `json` (not `jsonb`) on Postgres
+- [x] `withSettingsDefaults()` helper and `orderedSchema()` (stable sort)
+- [~] Route IDs: `isUlid()` (Laravel's `Str::isUlid`) and exact, case-sensitive matching are tested on both databases; the 404 wiring lands with `FormOwnershipGuard` in phase 5a
+- [x] Hand-written migrations, one per table, in this order: users → password_reset_tokens → denied_tokens → forms → form_entries → form_notifications → form_entry_exports. Laravel's table, column and constraint names
+- [x] Factories with the `active()` / `inactive()` states and `withBasicSchema`
+- [x] Seed: Test User plus 5 forms, 5 entries and 5 notifications
 
 **Done when**
-- [ ] ch. 2 Done-when list passes, including the Postgres checks (whole-second UTC timestamps, JSON key order, numeric counts) and the drift check
+- [x] ch. 2 Done-when list passes, including the Postgres checks (whole-second UTC timestamps, JSON key order, numeric counts) and the drift check. Checked locally 2026-10-03: migrations run and revert on SQLite and Postgres, 44 e2e tests pass on both, the Postgres drift check is clean, and `npm run seed` works. The CI run is still pending
 
 ## Phase 3: Shared HTTP plumbing, validation engine, contract suite (ch. 3 §3.2, ch. 4 engine, ch. 7 §7.4)
 
@@ -230,3 +230,4 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - 2026-10-03: Production facts recorded: SQLite 3.51 (`BINARY` collation), local disk, `post_max_size` 2M, UTC, file logging only, no form timezones, empty `TRUSTED_PROXIES` with the front end on localhost:3000. The supplied dump appears to be seed data. Docs updated: case-sensitive route IDs, SQLite import, `COLLATE "C"` name sort, `BODY_LIMIT` 2mb, `PORT` 8000, no S3, rollback needs `pdo_pgsql`, `TRUSTED_PROXIES=127.0.0.1` recommended.
 - 2026-10-03: No real production data, so the import script, rehearsal, write freeze and queue drain are dropped, and rollback simplified. `TRUSTED_PROXIES=127.0.0.1` decided for Laravel and Nest. Multipart confirmed as a requirement.
 - 2026-10-03: Phase 1 scaffolded. Nest 12 has shipped, and the latest `@nestjs/*` majors need it or are ESM-only (Jest can't load them). `@nest-lab/throttler-storage-redis` doesn't support Nest 12, so we pinned Nest 11 lines: `config@4`, `event-emitter@3`, `jwt@11`, `typeorm@11`, `bullmq@11`, `swagger@11`, plus `typeorm@0.3` (unpinned resolves to 1.x) and `faker@9` (10 is ESM-only). `bcrypt@6` rejects `$2y$` hashes, so phase 4 must rewrite them to `$2b$`; checked against a real PHP hash. Laravel root routes probed: non-GET `/` → 419 CSRF; 404/405 messages copied.
+- 2026-10-03: Phase 2 done, plus the phase 0 `Clock`, `createApp()` and factories. Findings: (1) entity decorators read `DB_TYPE` at import, before `ConfigModule` loads `.env`, so every entrypoint now imports `config/load-env.ts` first. (2) Jest `setupFiles` can't set the process timezone (the sandbox `process.env` is a copy); the Postgres tests had been running in local time. `TZ=UTC` is now set in a Jest `globalSetup`, with a test that checks it. (3) A TypeORM column transformer on a timestamp or JSON-string column makes every `save()` look like a change, which would bump `updated_at`. Truncation moved into `TimestampSubscriber`, and `user_agent_display` is `simple-json` (`text` on Postgres, a deviation from Laravel's `varchar(255)`). (4) PHP's `round()` differs from `Math.round(x*100)/100` (`0.285` → `0.29`), so `phpRound` is ported and tested against PHP output. (5) The TypeORM SQLite driver has no `char` type, and its schema diff reports false rebuilds, so the drift check stays Postgres-only. Factories moved to `src/database/factories/`.

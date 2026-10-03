@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RouterModule } from '@nestjs/core';
 import { ApiV1Module } from './api/api-v1.module';
+import { ClockModule } from './common/clock/clock.module';
 import { RedisModule } from './common/redis/redis.module';
 import { configLoaders, validateEnv } from './config';
 import { DatabaseModule } from './database/database.module';
@@ -15,10 +16,11 @@ export const coreImports = [
     cache: true,
     load: configLoaders,
     validate: validateEnv,
-    // Tests set their own environment (test/setup-env.ts).
-    ignoreEnvFile: process.env.NODE_ENV === 'test',
+    // `.env` is loaded by `config/load-env.ts`, before any entity module.
+    ignoreEnvFile: true,
   }),
   EventEmitterModule.forRoot(),
+  ClockModule,
   DatabaseModule,
   RedisModule,
 ];

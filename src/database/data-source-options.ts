@@ -1,6 +1,8 @@
-import { join } from 'node:path';
 import type { DataSourceOptions } from 'typeorm';
+import { LaravelNamingStrategy } from '../common/db/laravel-naming.strategy';
 import type { DatabaseConfig } from '../config';
+import { ENTITIES } from './entities';
+import { MIGRATIONS } from './migrations';
 
 /**
  * Connection options shared by the app and the TypeORM CLI. Migrations run
@@ -8,8 +10,9 @@ import type { DatabaseConfig } from '../config';
  */
 export function dataSourceOptions(config: DatabaseConfig): DataSourceOptions {
   const common = {
-    entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
-    migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+    entities: ENTITIES,
+    migrations: MIGRATIONS,
+    namingStrategy: new LaravelNamingStrategy(),
     synchronize: false,
     migrationsRun: false,
   };

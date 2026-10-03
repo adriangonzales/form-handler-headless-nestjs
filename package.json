@@ -27,7 +27,7 @@
     "migration:check": "npm run typeorm -- migration:generate --check src/database/migrations/DriftCheck",
     "migration:run": "typeorm migration:run -d dist/database/data-source.js",
     "migration:run:dev": "npm run typeorm -- migration:run",
-    "seed": "node dist/database/seeds/run-seed",
+    "seed": "ts-node src/database/seeds/run-seed.ts",
     "user:create": "node dist/users/create-user"
   },
   "dependencies": {
@@ -117,7 +117,8 @@
       "src/**/*.(t|j)s"
     ],
     "coverageDirectory": "coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "globalSetup": "<rootDir>/test/global-setup.ts"
   },
   "engines": {
     "node": ">=22.12 <23"

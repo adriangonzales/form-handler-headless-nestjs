@@ -1,3 +1,4 @@
+import './config/load-env';
 import { NestFactory } from '@nestjs/core';
 import type { ConfigType } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';

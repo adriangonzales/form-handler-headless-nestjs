@@ -13,5 +13,6 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "passWithNoTests": true
+  "passWithNoTests": true,
+  "globalSetup": "<rootDir>/test/global-setup.ts"
 }

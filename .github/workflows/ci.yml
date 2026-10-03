@@ -67,7 +67,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run test:e2e
+      # Postgres suites share one database (createApp drops the schema), so run them serially.
+      - run: npm run test:e2e -- ${{ matrix.db == 'postgres' && '--runInBand' || '' }}
 
   migrations:
     name: Migration drift check (Postgres)

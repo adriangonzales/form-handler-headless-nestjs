@@ -1,4 +1,6 @@
 // Test defaults. CI overrides DB_TYPE/DB_URL and REDIS_URL for the Postgres run.
+// TZ is set for the real process in test/global-setup.ts; this keeps the
+// sandbox's copy (which config validation reads) in step.
 process.env.TZ = 'UTC';
 process.env.APP_ENV ??= 'testing';
 process.env.APP_URL ??= 'http://localhost';

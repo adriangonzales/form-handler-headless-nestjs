@@ -30,7 +30,7 @@ export abstract class SoftDeletableUlidEntity extends UlidEntity {
 **Timestamps.** Eloquent stores whole seconds, which is why API timestamps always end in `.000000Z`. Keep it that way:
 
 - On Postgres, declare timestamp columns `timestamp(0)`. TypeORM's default `timestamp` keeps fractions of a second, which would produce `.123000Z` and change how ties sort.
-- Take every "now" from an injectable `Clock`. Its `now()` returns a `Date` truncated to whole seconds. Set `created_at` and `updated_at` from it in services (a base repository helper or a TypeORM subscriber), rather than relying on `@CreateDateColumn` / `@UpdateDateColumn`. Database defaults (`CURRENT_TIMESTAMP`, `datetime('now')`) ignore the test clock (ch. 7 §7.1). Bulk updates (ch. 3 §3.5) and soft deletes set `updated_at` and `deleted_at` from the same clock. TypeORM's `softDelete()` uses the database's time, so do soft deletes as an `update` with `deleted_at = clock.now()`.
+- Take every "now" from an injectable `Clock`. Its `now()` returns a `Date` truncated to whole seconds. `common/db/timestamp.subscriber.ts` sets `created_at` and `updated_at` from it on `save()`, as Eloquent does: unless already set on insert, only when something changed on update, and never over an `updated_at` the caller changed. It also truncates every `Date` column to whole seconds. Don't use `@CreateDateColumn` / `@UpdateDateColumn`, and don't truncate with a column transformer: with a transformer, TypeORM compares a `Date` against a string and treats every save as a change. Database defaults (`CURRENT_TIMESTAMP`, `datetime('now')`) ignore the test clock (ch. 7 §7.1). Bulk updates (ch. 3 §3.5) and soft deletes set `updated_at` and `deleted_at` from the same clock. TypeORM's `softDelete()` uses the database's time, so do soft deletes as an `update` with `deleted_at = clock.now()`.
 - Values sent by clients, such as entry `read_at`, are truncated to seconds before they're saved, as Eloquent does.
 - Run the process with `TZ=UTC` (ch. 1 §1.4). The `pg` driver reads `timestamp without time zone` columns in local time.
 
@@ -111,7 +111,7 @@ The JWT deny list (ch. 5 §5.5). It's a table rather than a cache, so clearing a
 | `input`                                                 | json null                            | Validated submission values                                 |
 | `ip`                                                    | varchar(255) null                    | Every client IP, comma-joined                               |
 | `ip_location_display`, `referer`, `user_agent`          | varchar(255) null                    | `ip_location_display` is never populated. `referer` is truncated to 255 |
-| `user_agent_display`                                    | varchar(255) null, holds JSON        | `{platform, browser, browser_version}`. Laravel declares it as a string column and casts it to an array |
+| `user_agent_display`                                    | text null, holds JSON (`simple-json`) | `{platform, browser, browser_version}`. Laravel declares a `varchar(255)` and casts it to an array. Nest uses `text`, because a JSON-string transformer on a varchar would mark every save as a change (2026-10-03) |
 | `spam`                                                  | boolean null, entity default `false` | `null` = spam check hasn't decided                          |
 | `spam_score`                                            | numeric(3,2) default 0               | Use a transformer that reads it as a `number` and rounds to 2 decimals on write |
 | `spam_reason`                                           | varchar(255) null                    |                                                             |
@@ -192,7 +192,7 @@ export interface FormSettings {
 }
 ```
 
-- Use `simple-json` on SQLite and **`json`, not `jsonb`**, on Postgres. `jsonb` reorders object keys and drops duplicates, so `input`, `schema` field objects and `settings` would come back in a different key order from the one Laravel returns. Decorator arguments are evaluated when the class loads, so `jsonColumnType()` (in `common/db/json-column.ts`) reads `DB_TYPE` from `process.env` at import time. Write the migrations for Postgres with `json`.
+- Use `simple-json` on SQLite and **`json`, not `jsonb`**, on Postgres. `jsonb` reorders object keys and drops duplicates, so `input`, `schema` field objects and `settings` would come back in a different key order from the one Laravel returns. Decorator arguments are evaluated when the class loads, so `jsonColumnType()` (in `common/db/column-types.ts`) reads `DB_TYPE` from `process.env` at import time. Every entrypoint therefore imports `config/load-env.ts` first, so `.env` is loaded before any entity module. TypeORM's SQLite driver also has no `char` type: `ulidColumnType()` gives `char(26)` on Postgres and `character(26)` on SQLite. Write the migrations for Postgres with `json`.
 - Postgres returns `bigint` (including `COUNT(*)`) and `numeric` values as **strings**. Cast the form-list counts (`entries_count` etc.) to numbers in the query or the presenter, and keep the `spam_score` transformer. SQLite returns numbers, so only the Postgres e2e run catches this (ch. 7 §7.1).
 - `schema` keeps the order the client sent. Only presentation (API, emails, CSV) sorts by `order`. `Array.prototype.sort` is stable in Node 22, which matches Laravel's `sortBy`.
 - Stored `settings` may be missing keys, for example rows written before a setting existed. Always read them through a `withSettingsDefaults()` helper that fills in every key, so the API returns all six (ch. 3 §3.4).
@@ -202,7 +202,9 @@ export interface FormSettings {
 
 - Write the initial migration by hand, or generate it and then review it. Don't rely on `synchronize` anywhere except the in-memory test database.
 - Use one migration per table, in this order: users → password_reset_tokens → denied_tokens → forms → form_entries → form_notifications → form_entry_exports.
-- Guard against drift: CI runs `typeorm migration:generate --check` against Postgres, which fails if the entities and the migrations disagree (ch. 1 §1.6). The Postgres e2e run applies the migrations rather than using `synchronize`.
+- Guard against drift: CI runs `typeorm migration:generate --check` against Postgres, which fails if the entities and the migrations disagree (ch. 1 §1.6). The Postgres e2e run applies the migrations rather than using `synchronize`. Run the check only on Postgres: TypeORM's SQLite schema diff reports table rebuilds even when the schema matches.
+- The migrations use `src/database/blueprint.ts`, a small set of builders named after Laravel's `Blueprint`. They pick driver-specific types, so the same files run (and revert) on SQLite and Postgres. Constraint and index names follow Laravel's Postgres names (`users_email_unique`, `forms_user_id_foreign`, `form_notifications_type_check`, ...) through `LaravelNamingStrategy`, which also snake-cases column names.
+- Register each new migration in `src/database/migrations/index.ts`. Migrations and entities are listed explicitly, because file globs don't load under ts-jest.
 - Keep the table and column names Laravel uses. The JSON contract depends on them, and it leaves the door open to pointing Laravel at this database later, though rollback doesn't rely on it (ch. 7 §7.5).
 
 ## 2.5 Factories and seeds
@@ -227,7 +229,9 @@ export const withBasicSchema = (): FormField[] => [
 
 Also port the `active()` / `inactive()` states and the entry, notification and export factories.
 
-The seed creates `Test User <test@example.com>` (matching `DatabaseSeeder`), plus 5 forms, 5 entries and 5 notifications (matching the other seeders).
+The seed creates `Test User <test@example.com>` (matching `DatabaseSeeder`), plus 5 forms, 5 entries and 5 notifications (matching the other seeders). As in Laravel, each entry and notification gets its own parent form and user, so the seeded database holds 16 users and 15 forms.
+
+The factories live in `src/database/factories/` (Laravel's `database/factories`), because both the seed and the tests use them. They and the seeds are excluded from the production build, since `@faker-js/faker` is a dev dependency, so `npm run seed` runs through `ts-node`.
 
 ## 2.6 Data migration from Laravel
 

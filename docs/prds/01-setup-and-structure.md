@@ -81,7 +81,7 @@ src/
     redis/                          # shared ioredis connection provider
     db/
       ulid-entity.ts                # base class: ULID PK + timestamps + soft delete
-      json-column.ts                # `json` on Postgres, `simple-json` on SQLite (ch. 2 §2.3)
+      column-types.ts               # `json`/`simple-json`, `timestamp(0)`, ULID `char(26)` per driver (ch. 2 §2.3)
     storage/                        # local / S3 disk for export files
   users/                     # User entity, user:create command
   auth/                      # login/refresh/logout/me, guard, deny list, login throttle (ch. 5)
@@ -108,6 +108,7 @@ src/
     migrations/
     seeds/
 test/
+  support/                   # createApp() harness, test-only modules (ch. 7 §7.1)
   contract/                  # black-box HTTP tests, runnable against either server
   e2e/                       # Nest app booted in-process against SQLite
 ```
@@ -130,7 +131,7 @@ test/
 | `app/Providers/Jwt/DatabaseStorage` | `auth/deny-list.service.ts`                                        |
 | `app/Console/Commands/CreateUser` | `npm run user:create` (a standalone Nest application context script) |
 | `routes/console.php` schedule   | `scheduler/`: a BullMQ job scheduler registered at worker boot         |
-| `database/factories/*`          | `test/factories/*.ts` using `@faker-js/faker`                          |
+| `database/factories/*`          | `src/database/factories/*.ts` using `@faker-js/faker` (excluded from the build; shared by tests and the seed) |
 | `database/seeders/*`            | `src/database/seeds/*.ts` + an `npm run seed` script                   |
 
 ## 1.4 `main.ts` essentials
