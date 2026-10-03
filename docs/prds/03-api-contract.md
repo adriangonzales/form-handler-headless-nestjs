@@ -42,9 +42,30 @@ Entries and notifications use Laravel's "shallow" nesting: create and list go th
 
 Every JWT route also runs the token-version check (ch. 5 §5.6).
 
-**CORS.** Laravel's default CORS config applies to every `/api/*` path: any origin, any method, any request header, no credentials, and preflight `OPTIONS` answered with 204. Match it with `app.enableCors({ origin: '*' })` scoped to `/api`. Browser forms posting to public submissions from other sites depend on it.
+**CORS.** The Laravel app has no `config/cors.php`, so the framework default applies to every `/api/*` path: any origin, any method, any request header, no credentials, no exposed headers, `max_age` 0, and preflight `OPTIONS` answered with 204. Match it with `app.use('/api', cors({ origin: '*', maxAge: 0 }))`, not `app.enableCors()`, which would also cover `/up` and `/docs`. Under Express 5, `app.use('/api', …)` needs no wildcard. Browser forms posting to public submissions from other sites depend on it. CORS headers must also be on error responses (401/404/422/429), which holds as long as the `cors` middleware runs before anything that can throw.
 
 ## 3.2 Cross-cutting shapes
+
+### Request input
+
+Laravel prepares the input before any validator sees it. Port each step into `common/http/request-input.ts` and `body-parsers.ts`, and run the steps for every route:
+
+1. **Parse the body.**
+   - **JSON:** a body that fails to parse becomes `{}`. Laravel's `$request->json()` decodes it to `null` and carries on, so the client gets 422 for the missing fields rather than 400.
+   - **`application/x-www-form-urlencoded`:** parse with `qs` (`extended: true`).
+   - **`multipart/form-data`:** parse the text fields with `multer`. Laravel parses multipart natively, and an HTML form with `enctype="multipart/form-data"` must keep working. File fields only matter if production schemas use `file`/`image` rules (ch. 4 §4.3).
+   - A body over the size limit → 413 JSON.
+2. **PHP key rewriting** (urlencoded, multipart and query string only, not JSON): PHP replaces `.` and spaces in top-level field names with `_`. `first name=Ann` and `user.email=x` arrive as `first_name` and `user_email`. Copy this.
+3. **Trim and empty to null.** Laravel's global `TrimStrings` and `ConvertEmptyStringsToNull` middleware run on the query string and the body, nested values included. Every string is trimmed (Unicode whitespace too, as Laravel's `Str::trim` does), and `""` then becomes `null`. Skip `password`, `password_confirmation` and `current_password`. This changes stored values: a submitted `" Ann "` is stored as `"Ann"`, and `""` is stored as `null`.
+4. **Merge.** The validator input is `{ ...query, ...body }` at the top level, so a body key wins over a query key. This is Laravel's `$request->all()`, and every Form Request validates it. It applies to every endpoint, not only the export and honeypot cases called out below. For example, a public submission's `?email=x` validates and is stored when the body has no `email`.
+
+Validated values are copied from this prepared input, never from `req.body`.
+
+### JSON encoding
+
+Laravel encodes responses with `json_encode` options `0`. That escapes `/` as `\/` and non-ASCII characters as `\uXXXX`. `JSON.stringify` does neither. Both decode to the same values, so **parity means equal parsed values with equal key order**, not equal bytes. Don't write a PHP-style encoder. Object key order is part of the contract: emit keys in the order shown in each resource below.
+
+Numbers: a JSON number round-trips through PHP as `int` or `float`. `1.0` in a submission comes back from Laravel as `1.0`, and from Node as `1`. Integers above 2^53 lose precision in Node. Accept both differences and note them in the contract suite's normaliser.
 
 ### Single resource
 
@@ -59,6 +80,8 @@ Every timestamp in a JSON response is ISO 8601 in UTC with **six** fractional di
 ### Paginated collection
 
 `?page=N` selects the page. `?per_page=N` sets the page size where the endpoint allows it (1 to 100, default 15). Anything else returns 422 on `per_page` ("The per page field must be between 1 and 100." / "must be an integer."). Out-of-range pages return an empty `data` array with 200.
+
+`page` is never validated. Laravel's paginator uses it only when `filter_var($page, FILTER_VALIDATE_INT)` passes and the value is at least 1. Otherwise it uses page 1. So `?page=abc`, `?page=0`, `?page=-2` and `?page[]=2` all give page 1 with 200.
 
 ```json
 {
@@ -114,12 +137,14 @@ List items **inside** `data` use the same resource shape as the single resource,
 | Form inactive (submissions)                              | 403    | `{"message":"This form is not accepting submissions."}`                  |
 | Referer not allowed (public submissions)                 | 403    | `{"message":"Submissions are not accepted from this domain."}`           |
 | Bad or expired download signature                        | 403    | `{"message":"Invalid signature."}`                                       |
-| Unknown or soft-deleted ID                               | 404    | `{"message":"..."}` (text not contractual)                               |
+| Unknown or soft-deleted ID, invalid ULID, unknown route  | 404    | `{"message":"..."}` (text not contractual)                               |
+| Wrong method on a known path                             | 405    | `{"message":"The POST method is not supported for route api/v1/forms/x. Supported methods: GET, HEAD, PUT, PATCH, DELETE."}` (text not contractual) plus an `Allow` header. Express returns 404 by default, so add a fallback that checks the path against the route table |
+| Body too large                                           | 413    | `{"message":"..."}`                                                      |
 | Force-deleting an entry that isn't deleted               | 409    | `{"message":"Only deleted entries can be permanently deleted."}`         |
 | Downloading an export that isn't completed               | 409    | `{"message":"This export is not ready."}`                                |
 | Downloading an expired export                            | 410    | `{"message":"This export has expired."}`                                 |
 | Validation failure                                       | 422    | see below                                                                |
-| Throttled                                                | 429    | `{"message":"Too Many Attempts."}` plus `Retry-After` and `X-RateLimit-*` headers |
+| Throttled                                                | 429    | `{"message":"Too Many Attempts."}` plus `Retry-After` (seconds until the window ends). Laravel's `X-RateLimit-*` headers aren't sent (see _Rate limiting_ below) |
 | Unhandled                                                | 500    | `{"message":"Server Error."}` (no stack traces outside dev)              |
 
 Validation error body:
@@ -138,9 +163,37 @@ Validation error body:
 - `errors` is keyed by field (dot notation for nested keys: `settings.redirect`, `schema.0.id`, `ids.3`), and each value lists messages in rule order.
 - Use Laravel's English message templates (`lang/en/validation.php` in `laravel/framework`) for every rule you support. The attribute name is the field key with `_` replaced by spaces. Rules this API uses beyond the basics: `missing` ("The :attribute field must be missing."), `list`, `ulid`, `distinct`, `date_format`, `after_or_equal`, `exists`, `between`, `timezone`, `url`, `regex`, `confirmed`, `different`, `unique`, `current_password`, and the `password.*` messages.
 
-Build one `LaravelValidationPipe` (for DTOs) and reuse the same formatter in the dynamic validator (ch. 4), so both produce identical error bodies.
+Every endpoint validates with the ch. 4 rule engine. Each Form Request becomes a rule array in `rules/*.rules.ts`, applied through a `@Validated(rules)` parameter decorator. Fixed endpoints and form schemas therefore produce identical error bodies from one set of message templates.
 
-**Order of checks** matches Laravel's Form Requests: authenticate (401) → find the record (404) → authorise (403) → validate (422). For example, a non-owner gets 403 even when the body is invalid.
+**Order of checks** matches Laravel's Form Requests: authenticate (401) → find the record (404) → authorise (403) → validate (422). For example, a non-owner gets 403 even when the body is invalid. In Nest this falls out naturally: guards run before the `@Validated()` parameter decorator.
+
+### Rate limiting
+
+There are three HTTP rate limits, built on `@nestjs/throttler` with `@nest-lab/throttler-storage-redis` as the store. The login limit is separate (ch. 5 §5.4).
+
+| Throttler name     | Limit             | Counted by                          | Routes                                  |
+| ------------------ | ----------------- | ----------------------------------- | --------------------------------------- |
+| `submissions-ip`   | 300 per 60 s      | client IP                           | `POST /forms/:form/submissions`         |
+| `submissions-form` | 60 per 60 s       | raw `:form` URL segment + `\|` + IP | `POST /forms/:form/submissions`         |
+| `password`         | 6 per 60 s        | client IP                           | `POST /auth/forgot-password` and `POST /auth/reset-password`, sharing **one** counter |
+
+Each throttler has its own counter, so submissions and password reset don't affect each other (F9, §3.6).
+
+**`LaravelThrottlerGuard`** (`common/rate-limit/`) extends `ThrottlerGuard` and overrides only the package's supported hooks:
+
+- **`getTracker`** returns Laravel's `$request->ip()`: the first entry of the Symfony-ordered client list (§3.5). Don't use the default, which reads `req.ip` and groups IPv6 addresses by /64. Laravel counts each exact address. `submissions-form` prefixes the tracker with the raw `:form` parameter, so unknown form IDs are counted too.
+- **`generateKey`** returns `sha1(throttlerName + '|' + tracker)`. The default key includes the controller and handler names, which would give forgot and reset separate counters. The storage adds the throttler name to the Redis key as well, which keeps the three counters apart.
+- **`throwThrottlingException`** sets `Retry-After` to `timeToExpire` (the seconds left in the window, as Laravel's `availableIn` gives) and throws with the message `Too Many Attempts.` (also set with the module's `errorMessage` option).
+
+Module settings:
+
+- **`blockDuration: 1`** (ms) on every throttler. By default the package blocks for a whole TTL, starting at the first request over the limit, so a client that goes over at 0:59 would be locked out until about 1:59. Laravel blocks only until the current window ends. With a 1 ms block, every request over the limit is blocked again until the window's counter expires, which is Laravel's fixed window. A test must pin this behaviour, because it relies on how the Redis storage's Lua script works.
+- **`setHeaders: false`**. The package's header names get a suffix for every named throttler (`X-RateLimit-Limit-submissions-form`), and its `X-RateLimit-Reset` is a number of seconds, not Laravel's Unix timestamp. Neither client reads these headers. The Next and Nuxt apps use only the status code and pass on `Retry-After` (checked 2026-10-03). So the port sends no `X-RateLimit-*` headers at all, rather than misleading ones. This is a **documented difference**, and the contract suite ignores these headers.
+- Register the throttlers in the order above. The guard checks them in that order, and each check counts the request before deciding, so a request that `submissions-form` rejects still counts toward `submissions-ip`. Laravel's two middleware behave the same way.
+
+Apply the guard only to the three routes, through a `@RateLimited(...names)` decorator. It adds `@UseGuards(LaravelThrottlerGuard)` and `@SkipThrottle` for the throttlers the route doesn't use. On public submissions it must run **before** the form is looked up, so that unknown IDs are counted and 429 comes before 404.
+
+Storage: `new ThrottlerStorageRedisService(redis)`, using the shared `ioredis` connection (ch. 1 §1.1). Don't use the package's in-memory storage in tests either. It counts in a sliding window, and with `blockDuration: 1` it resets the count when the block ends, so it wouldn't test production behaviour. Throttle e2e tests run against Redis (ch. 7 §7.1).
 
 ## 3.3 Authorization
 
@@ -288,7 +341,16 @@ On create, set `user_id` from the auth user and ignore it if the body contains i
 **`CreateFormEntry`** (shared with public submissions):
 
 - `input` = **only** the validated keys. Unknown keys are dropped, and keys absent under a `sometimes` rule are omitted. If nothing validates, store `[]`.
-- `ip` = every client IP, comma-joined: `(req.ips.length ? req.ips : [req.ip]).join(',')`, with `::ffff:` prefixes stripped. Laravel's `$request->ips()` lists the original client first, as Express does.
+- `ip` = every client IP, comma-joined, in **Symfony's order**. Port `Request::getClientIps()` rather than using `req.ips`:
+  1. Take the `X-Forwarded-For` entries, but only when the socket address is a trusted proxy. Append the socket address.
+  2. Strip ports and `::ffff:` prefixes, and drop entries that aren't valid IPs.
+  3. Remove every trusted-proxy address.
+  4. **Reverse** the list, so the hop nearest the server comes first and the original client last.
+  5. If nothing is left, use the first trusted address that was removed.
+
+  With `TRUSTED_PROXIES=*`, `X-Forwarded-For: 1.1.1.1, 2.2.2.2` and a proxy socket, the result is `2.2.2.2,1.1.1.1`. Laravel's `$request->ip()` is the first entry (`2.2.2.2`). Every per-IP rate limit and the login throttle key use that value. Capture a fixture from the reference app to confirm it.
+
+  The Next and Nuxt clients call the API from their own servers. They set `X-Forwarded-For` to the browser's IP (`lib/backend/client.ts` in Next, `server/utils/backend.ts` in Nuxt), so that the login and password-reset throttles count each browser separately. That only works when the client servers' addresses are covered by `TRUSTED_PROXIES`. Otherwise every user of a client shares one throttle bucket. Carry the production `TRUSTED_PROXIES` value over at cut-over.
 - `referer` = the `Referer` header truncated to 255 characters, or `null` when missing or empty.
 - `user_agent` = the `User-Agent` header or `null`.
 - `spam` = `true` if a spam reason was given, otherwise `false`. `spam_score` = 0. `spam_reason` = the reason or `null`.
@@ -340,7 +402,15 @@ Update only the keys that were sent. Reload, then return the entry resource.
    - 300 requests per minute per client IP, across all forms.
    - 60 requests per minute per client IP **per form**, keyed by the raw `:form` URL segment + `|` + IP (so it works for unknown IDs too).
 
-   Exceeded → 429 `{"message":"Too Many Attempts."}`.
+   Exceeded → 429 `{"message":"Too Many Attempts."}` with `Retry-After`. The throttlers are `submissions-ip` and `submissions-form` (§3.2, _Rate limiting_).
+
+   **F9: separate counters.** In Laravel, the 300/min limit is the unnamed `throttle:300,1`. Its key is `sha1(route domain + '|' + ip)`, which is `sha1('|' . ip)` with no route domain. The forgot/reset-password routes use unnamed `throttle:6,1`, which builds the **same key**. So the two limits share one counter per IP:
+   - 6 public submissions in a minute, then a `forgot-password` request from the same IP → 429.
+   - Password-reset requests count toward the 300 submissions.
+
+   The port gives each limit its own counter. The contract suite tags this case F9:
+   - against Laravel, 6 submissions followed by a forgot-password request gets 429;
+   - against Nest, the same sequence gets 200.
 2. Form missing or soft-deleted → 404.
 3. Form inactive → 403 "This form is not accepting submissions.".
 4. **Domain check.** If `settings.domains` is non-empty, parse the `Referer` header's host and lowercase it. It must equal a domain (compared case-insensitively), or end with `.example.org` for a `*.example.org` entry. A wildcard doesn't match the bare domain. A missing or unparseable `Referer` fails the check. On failure → 403 "Submissions are not accepted from this domain.". With no domains, anything passes.
@@ -350,7 +420,7 @@ Update only the keys that were sent. Reload, then return the entry resource.
 8. Emit `form-entry.created`, then `form-entry.submitted` (ch. 6).
 9. Return **201** `{ "data": { "redirect": <settings.redirect>, "message": <settings.message> } }`. Each is `null` when unset or when the form has no settings. Never redirect with a 3XX. Honeypot hits get exactly the same response.
 
-Accept JSON and `application/x-www-form-urlencoded` bodies (enable Express's `urlencoded({ extended: true })` parser), since plain HTML forms post the latter. The domain check is the access control, not CORS.
+Accept JSON, `application/x-www-form-urlencoded` and `multipart/form-data` bodies, since plain HTML forms post the latter two. Prepare the input as in §3.2 (_Request input_): PHP key rewriting, trimming, empty strings to `null`, and the query string merged in. The domain check is the access control, not CORS.
 
 ## 3.7 Exports
 
@@ -451,15 +521,15 @@ export class FormsController {
     ) {}
 
     @Get()
-    async index(@CurrentUser() user: User, @Query() query: FormIndexDto, @Req() req: Request) {
-        const page = await this.forms.paginateForUser(user.id, query);
+    async index(@CurrentUser() user: User, @Validated(formIndexRules) input: FormIndexInput, @Req() req: Request) {
+        const page = await this.forms.paginateForUser(user.id, input);
         return paginate(page, req, toFormListResource, { keepQuery: true });
     }
 
     @Post()
     @HttpCode(201)
-    async store(@CurrentUser() user: User, @Body() dto: StoreFormDto) {
-        const form = await this.forms.create(user.id, dto);
+    async store(@CurrentUser() user: User, @Validated(formStoreRules) input: FormStoreInput) {
+        const form = await this.forms.create(user.id, input); // commits before returning
         this.events.emit('form.created', new FormCreated(form));
         return { data: toFormResource(form) };
     }
@@ -475,7 +545,15 @@ export class FormsController {
 ## Done when
 
 - [ ] Every row in §3.1 is implemented, with PUT and PATCH both working.
-- [ ] The pagination envelope matches Laravel's byte for byte, for 0, 1, 16 and 200 records, with and without `per_page`, `sort` and `filter` (compare with the reference app).
-- [ ] The 401 / 403 / 404 / 409 / 410 / 422 / 429 bodies match §3.2.
+- [ ] The pagination envelope matches Laravel's as parsed JSON, including key order and URL strings, for 0, 1, 16 and 200 records, with and without `per_page`, `sort` and `filter`, and with invalid `page` values (compare with the reference app).
+- [ ] The 401 / 403 / 404 / 405 / 409 / 410 / 422 / 429 bodies and headers match §3.2.
+- [ ] Rate limiting, tested against Redis:
+  - the 61st submission to one form in a window gets 429, with `Retry-After` equal to the seconds left in the window;
+  - the next window accepts requests again;
+  - a request over the limit doesn't extend the lockout;
+  - forgot and reset share their counter;
+  - submissions don't affect password reset (F9).
+- [ ] The §3.2 _Request input_ steps have tests: trimming, empty strings to `null`, query merged with the body, malformed JSON → 422, multipart, and PHP key rewriting.
+- [ ] The stored `ip` and the rate-limit key match Laravel's for a fixture `X-Forwarded-For` chain.
 - [ ] Each check-order case (404 before 403 before 422) has a test.
 - [ ] The quirk tests from the README pass.

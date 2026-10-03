@@ -7,7 +7,7 @@ The Laravel app is headless and authenticates with JSON Web Tokens issued by `ty
 - `@nestjs/jwt` to sign and verify tokens (HS256, secret from `JWT_SECRET`).
 - A small custom `CanActivate` guard over `JwtService.verifyAsync`. It's simpler than Passport here, because refresh needs a different verification mode.
 - `bcrypt` for password checks (§5.8).
-- `@nestjs/throttler` for the forgot/reset-password limit. It's **not** enough for login throttling, because only failed attempts count. Implement §5.4 by hand over Redis.
+- `@nestjs/throttler` with the Redis storage for the forgot/reset-password limit, through the `password` throttler (ch. 3 §3.2, _Rate limiting_). It **can't** do the login limit: login counts only failed attempts and clears the count on success, and the throttler storage can only increment. Implement §5.4 by hand on the shared `ioredis` connection.
 
 ## 5.2 Token format
 
@@ -24,7 +24,24 @@ Match tymon's claims so behaviour carries over:
 | `prv` | `sha1("App\\Models\\User")`, which locks the token to the user model                          |
 | `tv`  | The user's `token_version` when the token was issued. Carried through refreshes (§5.6)        |
 
-Verify every token for signature, `exp` and `nbf` (no leeway), the presence of `iss`, `iat`, `exp`, `nbf`, `sub` and `jti`, the `prv` value, and that `jti` isn't on the deny list. Then run the token-version check.
+Verify every token for:
+
+- the signature;
+- `exp` and `nbf`, with no leeway;
+- `iat` not in the future (tymon rejects that);
+- the presence of `iss`, `iat`, `exp`, `nbf`, `sub` and `jti`;
+- the `prv` value;
+- a `jti` that isn't on the deny list.
+
+Then run the token-version check. In refresh mode, tymon checks only the structure, `iat + JWT_REFRESH_TTL` and the deny list. `exp` and `nbf` are skipped.
+
+**Where the token comes from.** tymon's parser tries three sources in order and uses the first one it finds:
+
+1. The `Authorization` header (or the `HTTP_AUTHORIZATION` / `REDIRECT_HTTP_AUTHORIZATION` server variables). It finds `bearer` case-insensitively, at its **last** occurrence, takes what follows it, cuts at the first `,`, and trims.
+2. The `token` query-string parameter (`?token=…`).
+3. A `token` field in the request input (body or query).
+
+Clients may already rely on 2 or 3, for example a download script that can't set headers. Port all three into the guard's token extractor, on authenticated routes and on refresh.
 
 ## 5.3 Endpoints
 
@@ -65,10 +82,19 @@ All under `/api/v1/auth`.
 
 ## 5.4 Login throttling
 
-- Key: `lower(email) + "|" + ip`, transliterated to ASCII (`Str::transliterate`).
+- Key: `lower(email) + "|" + ip`, transliterated to ASCII (`Str::transliterate`). `ip` is Laravel's `$request->ip()`: the first entry of the Symfony-ordered list in ch. 3 §3.5, not Express's `req.ip`.
 - Every failed login increments a counter with a 60-second decay window.
 - When the counter reaches 5, respond 429 **before** checking credentials: `{"message":"Too many login attempts. Please try again in N seconds.","errors":{"email":["Too many login attempts. Please try again in N seconds."]}}`, where N is the seconds left in the window.
 - A successful login deletes the counter.
+
+Implementation (`auth/login-limiter.service.ts`), a port of Laravel's `RateLimiter`, which is a fixed window:
+
+- `tooManyAttempts(key, 5)`: the count is ≥ 5 **and** the `:timer` key still exists. If the count is ≥ 5 but the timer has gone, reset the count and return false.
+- `hit(key, 60)`: in one Lua script, set `{key}:timer` = (now + 60, in Unix seconds) with `NX` and a 60 s expiry, then `INCR {key}` and give it a 60 s expiry if it has none. The window starts at the first failure, and later failures don't extend it.
+- `availableIn(key)`: the timer's value − now, at least 0. This is the `N` in the message.
+- `clear(key)`: delete both keys.
+- Prefix the Redis keys (`login:`) and hash the transliterated `email|ip`, so user input never forms raw key names.
+- Put the store behind an interface, with an in-memory version driven by the `Clock` for unit tests. The ported Pest login tests only count attempts and never move the clock, so they run against either version.
 
 ## 5.5 Deny list
 
@@ -137,7 +163,9 @@ The email mirrors Laravel's `ResetPassword` notification: subject "Reset Passwor
 3. Save the new password, set a new random 60-character `remember_token`, increment `token_version`, and delete the reset row.
 4. Respond 200 `{"message":"Your password has been reset."}`.
 
-Both endpoints share a limit of 6 requests per minute per IP. Beyond that → 429 `{"message":"Too Many Attempts."}`.
+Both endpoints share a limit of 6 requests per minute per IP: one `password` throttler counter for both routes (ch. 3 §3.2, _Rate limiting_). Beyond that → 429 `{"message":"Too Many Attempts."}` with `Retry-After`.
+
+In Laravel this counter is also shared with the public submission endpoint's 300/min limit. The port separates them (F9, ch. 3 §3.6).
 
 ## 5.11 Operator command
 
@@ -164,4 +192,5 @@ Port these case for case (ch. 7 lists counts):
 
 - [ ] All §5.14 tests pass against Nest.
 - [ ] A real `$2y$` hash from Laravel verifies.
+- [ ] A token is accepted from `Authorization: Bearer`, from `?token=` and from a body `token` field. A token with `iat` in the future is rejected.
 - [ ] The contract suite (ch. 7) authenticates by calling `/auth/login` against both servers, rather than using a pre-minted token.

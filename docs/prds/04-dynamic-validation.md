@@ -4,6 +4,8 @@ Form submissions are validated against rules stored in each form's `schema`. Tho
 
 Both submission endpoints use this: the authenticated `POST /forms/:form/entries` and the public `POST /forms/:form/submissions` (ch. 3 §3.5, §3.6).
 
+The same engine validates **every other request** too. Each Laravel Form Request becomes a rule array (`rules/*.rules.ts`), such as `{ 'schema.*.id': ['required', 'ulid', 'distinct'] }`. This gives one evaluation model, one set of messages, and Laravel's rule order. It's why the port uses no `class-validator` (README, _Technology choices_). Build the engine in plan phase 3, before authentication, because login, password change and reset need `confirmed`, `different`, `current_password`, `unique` and the password rules.
+
 ## 4.1 Building the rule set (port of `BuildValidationRules`)
 
 ```ts
@@ -39,9 +41,9 @@ For each `[attribute, rules]`:
 
 The **validated output** contains only attributes that have rules and are present in the input, with their original values. It becomes `entry.input`.
 
-Input arrives from JSON bodies and from `application/x-www-form-urlencoded` bodies (public submissions). In the second case every scalar is a string, so `numeric`, `integer` and `boolean` must accept their string forms, as Laravel does.
+The input is the prepared request input from ch. 3 §3.2: the query string merged with the body, strings trimmed and `""` turned into `null`. It arrives from JSON, `application/x-www-form-urlencoded` and `multipart/form-data` bodies. In the last two, every scalar is a string, so `numeric`, `integer` and `boolean` must accept their string forms, as Laravel does. Because `""` is already `null` by the time rules run, `required` fails on it, and `nullable` lets it through as `null`.
 
-Laravel resolves dotted attribute names (`address.city`) into nested input, and `*` wildcards (`tags.*`). Support dotted names. Check production schemas for wildcards (§4.3) before deciding whether to support them.
+Laravel resolves dotted attribute names (`address.city`) into nested input, and `*` wildcards (`tags.*`). The engine supports both, because the request rule arrays need wildcards (`schema.*.id`, `ids.*`, `settings.domains.*`). Wildcard errors use the concrete index as their key (`schema.0.id`).
 
 ## 4.3 Supported rules (minimum set)
 
@@ -78,6 +80,22 @@ Support this set in the port. Its messages come from Laravel's `en/validation.ph
 
 Replace `:attribute` with the attribute key, with underscores turned into spaces. Existing forms mostly use ULID keys or explicit `name`s, so tests should assert on error **keys**. Exact message text is only contractual for simple snake_case names.
 
+**Copy PHP's behaviour, not its rough JS equivalent.** The obvious JS function disagrees with PHP at the edges:
+
+| Rule                  | Laravel uses                                         | Known differences from the obvious JS choice                                              |
+| --------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `integer`             | `filter_var(FILTER_VALIDATE_INT)`                     | Accepts `"+5"` and surrounding whitespace; rejects `"015"`, `"1.0"` and `"1e3"`          |
+| `numeric`             | `is_numeric`                                         | Accepts `"1e3"`, `" 1"`, `"1 "` and `".5"`; rejects `"0x1A"`, `"1_000"` and `""`         |
+| `email`               | `egulias/email-validator` `RFCValidation`            | Accepts `user@localhost`, quoted local parts and IP-literal domains. `isEmail` rejects these unless configured |
+| `url`                 | Laravel's own regex plus a list of protocols         | Accepts `http://localhost`; `isURL` needs `require_tld: false`                            |
+| `date`                | `strtotime` + `checkdate`                            | Rejects `2026-02-30`, which `Date.parse` accepts by rolling it over. Accepts relative forms such as `next monday` |
+| `timezone`            | `DateTimeZone::listIdentifiers(ALL)`, case-sensitive | `Intl.supportedValuesOf('timeZone')` returns `Asia/Calcutta` and leaves out `Asia/Kolkata`. Commit PHP's list as JSON instead |
+| `boolean` / `accepted` | strict lists                                        | `"true"` fails `boolean` but passes `accepted`                                            |
+
+Generate the expected results from PHP. Write a small script in the Laravel repo that runs `Validator::make` over a corpus of values for each rule and saves `{rule, value, passes, message}` as JSON. Commit that file under `test/fixtures/` as the source of truth for the table-driven tests. Re-run the script whenever a rule is added.
+
+The fixed endpoints also need these rules, all from the same `validation.php` templates: `missing`, `list`, `array:keys`, `ulid`, `distinct`, `date_format`, `after_or_equal`, `exists`, `unique`, `confirmed`, `different`, `current_password`, `timezone`, `regex`, `size`, `in` (from `Rule::in`), and `password.*` (ch. 5 §5.9). Rules that query the database (`exists`, `unique`, `current_password`) take an injected callback, so the engine itself stays pure.
+
 Find every rule that existing forms actually use before you start:
 
 ```sql
@@ -102,7 +120,7 @@ export class SchemaValidator {
 }
 ```
 
-On failure, the controller throws the same `UnprocessableEntityException` the DTO pipe uses, so the body shape is identical (ch. 3 §3.2).
+`validate` is async in practice, because the database-backed rules need queries. The `@Validated(rules)` parameter decorator calls the same method for fixed endpoints. Rules can also be a function of the request, as in `(req) => buildRules(req.form.schema)`. On failure, both paths throw the same `UnprocessableEntityException`, so the body shape is identical (ch. 3 §3.2). Error keys come out in rule-array order and messages in rule order, matching Laravel's `errors` object.
 
 ## 4.5 Rule names checked on save (F7)
 
@@ -138,7 +156,9 @@ export function mapFormData(form: Form, entry: FormEntry) {
 ## Done when
 
 - [ ] All `BuildValidationRulesTest` cases pass.
-- [ ] A table-driven test covers every rule in §4.3 with pass, fail and message.
+- [ ] A table-driven test covers every rule in §4.3 with pass, fail and message, using the PHP-generated corpus.
+- [ ] Wildcard rules (`schema.*.id`) report errors under concrete keys (`schema.0.id`).
+- [ ] A submitted `"  "` fails `required`; `" Ann "` is stored as `"Ann"`.
 - [ ] Submitting to a form using `withBasicSchema` with an empty body returns 422 with three errors and a `message` ending in "(and 2 more errors)". This works on both submission endpoints.
 - [ ] A urlencoded public submission with `"1"` for a `boolean` / `numeric` field passes.
 - [ ] Saving a form with the rule `"requird"` returns 422 on `schema.0.rules`.

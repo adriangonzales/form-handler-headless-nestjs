@@ -11,7 +11,9 @@ Everything here runs after a request has returned, or on a schedule. Each part i
 | `form-entry.submitted`     | After a **public** submission is stored, after `created`    | `FormEntrySubmitted { formEntry }`   | `ParseFormEntryUserAgent` (queued), `CheckFormEntryForSpam` (queued) |
 | `form-entry.spam-checked`  | When `CheckFormEntryForSpam` finishes, whatever the outcome | `FormEntrySpamChecked { formEntry }` | `SendFormEntryAlerts` (runs in the emitting worker)             |
 
-Use `@nestjs/event-emitter`. Emit **after** the database write commits. Tests assert that the event fired with the right record, the equivalent of `Event::fake()` + `assertDispatched`. Spy on `EventEmitter2.emit` in e2e tests.
+Use `@nestjs/event-emitter`. Emit **after** the database write commits. TypeORM has no after-commit hook, so use one pattern throughout: a service method does its writes (in a `dataSource.transaction()` when there's more than one) and returns, and the caller emits once the promise has resolved. Never emit from inside a transaction callback. Tests assert that the event fired with the right record, the equivalent of `Event::fake()` + `assertDispatched`. Spy on `EventEmitter2.emit` in e2e tests.
+
+The listeners are registered in **both** processes. `form-entry.submitted` is emitted in the API process, and its handlers enqueue jobs there. `form-entry.spam-checked` is emitted inside the `check-spam` processor, and `SendFormEntryAlerts` handles it in the worker (ch. 1 §1.5).
 
 Entries created through the authenticated API emit only `form-entry.created`, so they're never spam-checked, alerted or user-agent-parsed.
 
@@ -34,7 +36,15 @@ public submission ──► form-entry.created
 | `deliver-alert { recipientId, entryId }` | `DeliverFormEntryAlert` job   | 3 attempts, backoff 60 s then 300 s | write `error` on the recipient, keep the failed job |
 | `generate-form-entry-export { exportId }` | `GenerateFormEntryExport` job | worker default                | mark the export `failed`                             |
 
-Configure BullMQ with `attempts: 3` and a custom backoff of `[60_000, 300_000]` for `deliver-alert`. Keep failed alert jobs (`removeOnFail: false`) so an operator can retry them, the equivalent of `php artisan queue:retry`.
+Configure BullMQ with `attempts: 3` and `backoff: { type: 'alert' }` for `deliver-alert`. BullMQ has no built-in list-style backoff, so register the strategy on the **Worker**: `settings: { backoffStrategy: (attemptsMade, type) => type === 'alert' ? [60_000, 300_000][attemptsMade - 1] : 0 }`. Keep failed alert jobs (`removeOnFail: false`) so an operator can retry them, the equivalent of `php artisan queue:retry`. "Worker default" means `attempts: 1`, matching `queue:work`'s default `--tries=1`.
+
+**Dispatching.** Don't inject BullMQ queues into services directly. Enqueue through a `JobDispatcher` interface with three implementations:
+
+- `BullJobDispatcher` (production) adds the job to its BullMQ queue.
+- `SyncJobDispatcher` (`QUEUE_DRIVER=sync`) runs the processor inline, once, in the request. If it throws, the failure handler runs. There are no retries or backoff; that's how Laravel's `sync` queue behaves too, and the contract runs should confirm whether the exception then also reaches the response. This is how the contract suite runs the server (ch. 7 §7.4), so it's runtime configuration, not a test-only switch.
+- `FakeJobDispatcher` (tests) records jobs without running them, like `Queue::fake()`.
+
+Each processor keeps its logic in a plain `handle(data)` method. The BullMQ `@Processor` class and the sync dispatcher both call it.
 
 ## 6.3 User-agent parsing
 
@@ -43,7 +53,7 @@ On `form-entry.submitted`:
 1. Load the entry. If `user_agent` is `null` or `""`, do nothing.
 2. Otherwise, parse it and store `user_agent_display = { platform, browser, browser_version }`. Use `null` for any part the parser can't identify.
 
-Laravel uses `donatj/phpuseragentparser`. Its names differ from `ua-parser-js`'s, so add a mapping layer and test it with real UA strings from production entries. Known differences to cover:
+Laravel uses `donatj/phpuseragentparser`. Use `ua-parser-js` **v1** (MIT). v2 is licensed AGPL-3.0, so don't upgrade without a licence review. Its names differ from donatj's, so add a mapping layer and test it with real UA strings from production entries. Known differences to cover:
 
 | donatj value (keep)          | ua-parser-js gives            |
 | ---------------------------- | ----------------------------- |
@@ -159,7 +169,7 @@ Mail transport: when `MAIL_MAILER=postmark`, send through the `postmark` client 
 
 ## 6.7 Scheduled pruning
 
-Hourly (`@Cron('0 * * * *')`, matching `Schedule::command('model:prune')->hourly()`):
+Hourly, matching `Schedule::command('model:prune')->hourly()`. Register a BullMQ job scheduler when the worker boots: `pruneQueue.upsertJobScheduler('hourly-prune', { pattern: '0 * * * *' }, { name: 'prune' })`. BullMQ creates one job per tick whatever the number of workers, so the prune never runs twice and no process has to be "the scheduler". `upsert` is idempotent across restarts. Take "now" from the `Clock` so tests can run the prune after `travel()`. The prune:
 
 - Delete `denied_tokens` rows with `expires_at <= now`.
 - For each `form_entry_exports` row with `expires_at <= now`: delete its file (if `path` is set), then delete the row.
@@ -172,3 +182,5 @@ Hourly (`@Cron('0 * * * *')`, matching `Schedule::command('model:prune')->hourly
 - [ ] The email subject, time formatting (UTC and a non-UTC timezone) and field list match `FormEntryAlertsTest`.
 - [ ] The CSV output for the `FormEntryExportControllerTest` fixtures is byte-identical to Laravel's.
 - [ ] Pruning removes expired deny-list rows, exports and their files.
+- [ ] With two workers running, the hourly prune runs once per hour.
+- [ ] With `QUEUE_DRIVER=sync`, a public submission's spam check, user-agent parsing and alerts have all happened by the time the 201 is returned.
