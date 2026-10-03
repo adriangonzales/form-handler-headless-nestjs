@@ -1,2 +1,14 @@
 # Agents
 .omc
+
+# Node
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local environment and data
+.env
+storage/
+*.sqlite
+*.sqlite-journal

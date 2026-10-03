@@ -112,8 +112,8 @@ Commit the fixtures, together with the script that produced them, under `test/fi
 ```bash
 # against Laravel
 CONTRACT_BASE_URL=http://localhost:8000 CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
-# against NestJS
-CONTRACT_BASE_URL=http://localhost:3000 CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
+# against NestJS (PORT=8001 locally, so both can run at once; 3000 is the front end)
+CONTRACT_BASE_URL=http://localhost:8001 CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
 ```
 
 - Seed both databases with the same user (`php artisan user:create` on one side and `npm run user:create` on the other), then create all other data through the API in `beforeAll`. That includes a second user for the ownership cases, and public submissions for entries.
@@ -133,17 +133,12 @@ Both servers issue tokens through `POST /api/v1/auth/login`. The contract suite 
 - [ ] Parity matrix is green.
 - [ ] §7.3 tests are green.
 - [ ] Contract suite is green on both servers, with only the expected F7 and F9 differences.
-- [ ] Data import rehearsed. Contract suite green against the imported copy.
-- [ ] Every rule used by production form schemas is supported (ch. 4 §4.3 SQL check).
-- [ ] Write freeze for the import window agreed and announced. Laravel's `artisan down` returns 503 to customer browser forms, so keep the window short and schedule it for low traffic.
-- [ ] Laravel queue drained and Laravel scheduler/worker stopped before the final import.
+- [ ] No data import: production has no real data (ch. 2 §2.6). Migrations run on the empty production Postgres, and operator accounts are created with `npm run user:create`.
+- [ ] Laravel worker and scheduler stopped at the switch, so nothing is sent from both services.
 - [ ] Nest worker(s) running, with the hourly prune job scheduler registered (ch. 6 §6.7).
-- [ ] `TRUSTED_PROXIES` set for the new hosting, and checked: the stored `ip` and the rate-limit key match what Laravel recorded for the same proxy chain.
+- [ ] `TRUSTED_PROXIES` set for the new hosting (at least `127.0.0.1`, because the front end calls the API from the same host, ch. 3 §3.5), and checked: the stored `ip` and the rate-limit key match what Laravel recorded for the same proxy chain.
 - [ ] `JWT_SECRET` rotated at cut-over; users can log in against the new service.
 - [ ] Postmark webhook URL pointed at the new service, with the same basic-auth credentials; a test bounce records an `error`.
-- [ ] Browser forms on at least one customer site submit successfully (CORS, domain check, honeypot).
-- [ ] Rollback plan: keep the Laravel app deployable for one release cycle, pointed at the **new** Nest database rather than a read-only snapshot. A snapshot would lose every entry, recipient change and account change made after cut-over. This works because the tables stay readable by Laravel (ch. 2 §2.4). Before relying on it:
-  - confirm Laravel's database driver can reach the new Postgres;
-  - add the `cache`, `jobs` and `failed_jobs` tables Laravel needs, or point Laravel at Redis for those;
-  - rehearse the rollback once.
+- [ ] Browser forms on at least one customer site submit successfully (CORS, domain check, honeypot), including a `multipart/form-data` form.
+- [ ] Rollback plan: keep the Laravel app and its SQLite file deployable for one release cycle, and switch traffic back if needed. With no real data, anything created on Nest in between can be recreated by hand, so rollback doesn't need a shared database.
 - [ ] Product owner has signed off F7, F9, the `X-RateLimit-*` header difference and the open decisions in the README.

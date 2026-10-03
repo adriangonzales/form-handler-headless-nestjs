@@ -15,7 +15,7 @@ Work through the chapters in order. Each one ends with a **Done when** checklist
 | #   | Chapter                                                      | Outcome                                                                 |
 | --- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | 1   | [Setup & project structure](01-setup-and-structure.md)       | Running Nest app, config, lint/test tooling, module layout              |
-| 2   | [Data model](02-data-model.md)                               | Entities, migrations, ULIDs, soft deletes, factories, data import       |
+| 2   | [Data model](02-data-model.md)                               | Entities, migrations, ULIDs, soft deletes, factories (no data import needed) |
 | 3   | [API contract](03-api-contract.md)                           | Every `/api/v1` endpoint with byte-compatible responses                 |
 | 4   | [Dynamic schema validation](04-dynamic-validation.md)        | Laravel-rule interpreter for form submissions                           |
 | 5   | [Authentication & accounts](05-authentication.md)            | JWT login/refresh/logout, revocation, account management, password reset |
@@ -51,7 +51,7 @@ These are decided. Don't substitute alternatives without agreement.
 | Mail                    | Mailables, Postmark in production                           | `nodemailer` (SMTP/log) and the `postmark` client when `MAIL_MAILER=postmark`      |
 | Spam classification     | `laravel/ai` → TypeSafe "Jev"                               | Direct `fetch` to the TypeSafe API (ch. 6 §6.4)                                    |
 | User-agent parsing      | `donatj/phpuseragentparser`                                 | `ua-parser-js` **v1** (MIT; v2 is AGPL-3.0) with a name-mapping layer (ch. 6 §6.3) |
-| File storage            | Laravel filesystem (`FILESYSTEM_DISK`, private)             | Small storage interface: local directory, S3 if production uses it                 |
+| File storage            | Laravel filesystem (`FILESYSTEM_DISK`, private)             | Small storage interface with a local-directory implementation (production uses `local`)                 |
 | Signed download URLs    | `URL::temporarySignedRoute` + `signed:relative`             | HMAC-SHA256 helper with the same `expires` / `signature` query parameters          |
 | API docs                | Scramble at `/docs/api` (spec at `/docs/api.json`)          | `@nestjs/swagger` at the same two paths. **Semi-contractual:** both clients generate their TypeScript types from `/docs/api.json` (ch. 7 §7.2) |
 | Tests                   | Pest                                                        | Jest + Supertest (Nest defaults)                                                   |
@@ -106,4 +106,4 @@ Settle these before cut-over. The port defaults to the Laravel behaviour.
 2. The contract tests (chapter 7 §7.4) pass against **both** the Laravel and the NestJS service. The only allowed differences are F7, F9 and the `X-RateLimit-*` headers (ch. 3 §3.2). JSON responses are compared as parsed values, including object key order, not as bytes: Laravel escapes `/` as `\/` and non-ASCII characters as `\uXXXX`, and `JSON.stringify` does neither. CSV downloads are compared byte for byte.
 3. A public submission end to end (browser form → spam check → alert email → Postmark bounce recorded on the recipient) works against staging.
 4. `npm run lint`, `npm run typecheck` and `npm test` pass in CI.
-5. A data migration from the Laravel database has been rehearsed (chapter 2 §2.6).
+5. A fresh deployment works from empty: migrations run, `npm run user:create` creates the operator accounts, and a form can be created and submitted (chapter 2 §2.6: there's no production data to migrate).

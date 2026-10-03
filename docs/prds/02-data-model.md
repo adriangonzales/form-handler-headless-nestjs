@@ -34,7 +34,7 @@ export abstract class SoftDeletableUlidEntity extends UlidEntity {
 - Values sent by clients, such as entry `read_at`, are truncated to seconds before they're saved, as Eloquent does.
 - Run the process with `TZ=UTC` (ch. 1 §1.4). The `pg` driver reads `timestamp without time zone` columns in local time.
 
-**IDs.** `@BeforeInsert` only fires when you call `save()` on an entity instance. QueryBuilder `insert()` and `repository.insert()` skip it, so the factories and the import script must set `id` themselves.
+**IDs.** `@BeforeInsert` only fires when you call `save()` on an entity instance. QueryBuilder `insert()` and `repository.insert()` skip it, so the factories must set `id` themselves.
 
 TypeORM's `find*` methods exclude soft-deleted rows automatically. Laravel does the same, and route model binding returns 404 for a trashed record. Keep that behaviour, and pass `withDeleted: true` **only** where Laravel uses `withTrashed()`:
 
@@ -51,8 +51,8 @@ Model IDs are **lowercase** ULIDs (`HasUlids` lowercases them). Schema field IDs
 Route IDs:
 
 - A route ID that isn't a valid ULID gets 404 without querying the database. Laravel's `HasUniqueStringIds` does the same.
-- Whether Laravel matches a route ID case-insensitively depends on the production database's collation. MySQL's default `_ci` collations ignore case; SQLite and Postgres don't. Confirm the production engine (PLAN open questions) and copy its behaviour. If it is case-insensitive, lowercase the route parameter before the lookup. That's safe because stored IDs are lowercase.
-- IDs in request bodies (bulk `ids`) are compared exactly in every case, because Laravel's `exists`/`whereIn` check doesn't change their case.
+- Route IDs are matched **exactly, including case**. Production Laravel runs on SQLite 3.51 with the default `BINARY` collation (confirmed 2026-10-03). Stored IDs are lowercase, so an uppercase ULID in a URL gets 404. Postgres `=` on `char(26)` behaves the same, so don't lowercase route parameters.
+- IDs in request bodies (bulk `ids`) are compared exactly too.
 
 ## 2.2 Tables
 
@@ -203,7 +203,7 @@ export interface FormSettings {
 - Write the initial migration by hand, or generate it and then review it. Don't rely on `synchronize` anywhere except the in-memory test database.
 - Use one migration per table, in this order: users → password_reset_tokens → denied_tokens → forms → form_entries → form_notifications → form_entry_exports.
 - Guard against drift: CI runs `typeorm migration:generate --check` against Postgres, which fails if the entities and the migrations disagree (ch. 1 §1.6). The Postgres e2e run applies the migrations rather than using `synchronize`.
-- Keep the tables readable by Laravel: same table names, column names and types, and lowercase ULIDs. That keeps rollback possible by pointing Laravel at the new database (ch. 7 §7.5).
+- Keep the table and column names Laravel uses. The JSON contract depends on them, and it leaves the door open to pointing Laravel at this database later, though rollback doesn't rely on it (ch. 7 §7.5).
 
 ## 2.5 Factories and seeds
 
@@ -231,20 +231,13 @@ The seed creates `Test User <test@example.com>` (matching `DatabaseSeeder`), plu
 
 ## 2.6 Data migration from Laravel
 
-Write a one-off script (`scripts/import-from-laravel.ts`) that reads the Laravel database and inserts rows into the new schema:
+**Not needed.** Production has no real data (confirmed 2026-10-03). The supplied dump is a seeded database: test users on `example.*` domains, forms with empty schemas, and factory entries. The Nest service starts with an empty Postgres database:
 
-0. Read the source with the driver for Laravel's **production** database engine (an open question in PLAN.md). Convert its types as you go:
-   - Booleans stored as `0`/`1` become real booleans.
-   - JSON stored as text is parsed and written to `json` columns.
-   - Timestamps are read in Laravel's `app.timezone` and written as UTC.
-   - Set every `id` explicitly, because `insert()` skips `@BeforeInsert`.
-1. Copy `users` rows as-is, including `token_version`. bcrypt hashes stay valid (ch. 5 §5.8).
-2. Copy `forms`, `form_entries` and `form_notifications` as-is, including soft-deleted rows. `user_agent_display` is a JSON string. Copy it verbatim.
-3. Assert every non-null `forms.schema` is a JSON **list** whose items have `id` and `order`. The Laravel app no longer reads the old object-keyed shape. Stop the import and report any form that fails this check.
-4. Don't copy `denied_tokens`, `password_reset_tokens`, `form_entry_exports` or export files. Rotate `JWT_SECRET` at cut-over, so old tokens die anyway (ch. 5 §5.10). Pending reset links and exports expire within hours. Ask users to re-request them.
-5. Drain the Laravel queue before the final import, so no spam checks or alerts are lost or sent twice.
+1. Run the migrations.
+2. Create the operator accounts with `npm run user:create` (ch. 5 §5.11).
+3. Recreate any forms and recipients through the API or the front end.
 
-Rehearse the import against a copy of production data. Then run the contract suite against the imported database.
+Laravel's `denied_tokens`, reset tokens and exports are discarded with it. If real data appears in Laravel before cut-over, revive the import plan. It's in this file's git history: a SQLite source read with `better-sqlite3`, type conversion, the schema-shape assertion, and a queue drain.
 
 ## Done when
 

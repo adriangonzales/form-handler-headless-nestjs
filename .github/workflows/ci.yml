@@ -1,0 +1,109 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  TZ: UTC
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  e2e:
+    name: e2e (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [sqlite, postgres]
+    services:
+      # The throttle e2e tests need a real Redis (ch. 7 §7.1).
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: forms
+          POSTGRES_PASSWORD: forms
+          POSTGRES_DB: forms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U forms" --health-interval 5s --health-retries 10
+    env:
+      DB_TYPE: ${{ matrix.db }}
+      DB_URL: ${{ matrix.db == 'postgres' && 'postgres://forms:forms@127.0.0.1:5432/forms' || ':memory:' }}
+      REDIS_URL: redis://127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:e2e
+
+  migrations:
+    name: Migration drift check (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: forms
+          POSTGRES_PASSWORD: forms
+          POSTGRES_DB: forms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U forms" --health-interval 5s --health-retries 10
+    env:
+      DB_TYPE: postgres
+      DB_URL: postgres://forms:forms@127.0.0.1:5432/forms
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run migration:run:dev
+      # Fails when entities and migrations have drifted apart (ch. 2 §2.4).
+      - run: npm run migration:check
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: docker build -t form-handler .

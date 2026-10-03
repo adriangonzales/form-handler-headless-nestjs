@@ -104,6 +104,8 @@ SELECT id, schema FROM forms WHERE schema IS NOT NULL AND deleted_at IS NULL;
 
 If a production form uses a rule outside this table, add support for it before cut-over.
 
+Result against the dump supplied on 2026-10-03: all 15 forms have an empty schema (`[]`), so no rules are in use. That dump is seed data, and production has no real forms (confirmed 2026-10-03), so there are no existing rules to cover. The minimum set above is the target, and rules that need the file system (`file`, `image`, `mimes`) are out of scope.
+
 ## 4.4 Interface
 
 ```ts

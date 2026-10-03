@@ -1,0 +1,40 @@
+import { registerAs } from '@nestjs/config';
+import { EnvReader, readOrThrow } from './env';
+
+export interface AppConfig {
+  url: string;
+  /** `production` turns on the strict password policy (ch. 5 §5.9). */
+  env: string;
+  /** Raw key bytes; a `base64:` prefix is decoded as Laravel does. */
+  key: Buffer;
+  passwordResetUrl: string;
+  /** Minutes a signed export download URL stays valid. */
+  exportDownloadUrlTtl: number;
+}
+
+export function readAppConfig(r: EnvReader): AppConfig {
+  const url = r.url('APP_URL').replace(/\/+$/, '');
+  const rawKey = r.required('APP_KEY');
+  const key = rawKey.startsWith('base64:')
+    ? Buffer.from(rawKey.slice('base64:'.length), 'base64')
+    : Buffer.from(rawKey, 'utf8');
+  if (rawKey !== '' && key.length === 0)
+    r.fail('APP_KEY decodes to an empty key');
+
+  // The pg driver reads `timestamp without time zone` in the process's local
+  // timezone (ch. 2 §2.1).
+  const tz = r.optional('TZ', '');
+  if (tz !== 'UTC') r.fail(`TZ must be "UTC", got "${tz}"`);
+
+  return {
+    url,
+    env: r.optional('APP_ENV', 'production'),
+    key,
+    passwordResetUrl: r.url('PASSWORD_RESET_URL', `${url}/reset-password`),
+    exportDownloadUrlTtl: r.int('EXPORT_DOWNLOAD_URL_TTL', 5, 1),
+  };
+}
+
+export const appConfig = registerAs('app', () =>
+  readOrThrow(process.env, readAppConfig),
+);

@@ -65,7 +65,7 @@ Laravel uses `donatj/phpuseragentparser`. Use `ua-parser-js` **v1** (MIT). v2 is
 | browser `Chrome`, `Firefox`, `Safari`, `Edge` | mostly the same, but `Mobile Safari`, `Chrome Mobile`… need mapping |
 | browser_version `129.0.0.0`  | `browser.version` (full string, keep as is) |
 
-Treat exact strings for rare agents as best effort. The PRD example (`Macintosh` / `Chrome` / `129.0.0.0`) and the cases in `FormEntryUserAgentTest` must match exactly.
+The dump supplied on 2026-10-03 has no real user-agent strings: its five entries hold factory values such as `Safari 532.0` on Windows. Build the corpus from public UA lists for current browsers instead, run each string through donatj's parser in the Laravel repo to get the expected values, and commit the results as a fixture, as with the rule corpus in ch. 4 §4.3. Treat exact strings for rare agents as best effort. The PRD example (`Macintosh` / `Chrome` / `129.0.0.0`) and the cases in `FormEntryUserAgentTest` must match exactly.
 
 ## 6.4 Spam classification (Jev)
 
@@ -131,7 +131,7 @@ Write the TypeSafe client as a small injectable (`JevClient.classify(state): Pro
 
 - **Subject:** `New entry: {form name}`.
 - **Postmark metadata:** `{ "form_notification_id": "<recipient id>" }`. The bounce webhook (ch. 3 §3.9) depends on it. With the `postmark` client, pass `Metadata`. With nodemailer, it's unused.
-- **Submission time:** `entry.created_at` in UTC, formatted as PHP `D, M j, Y g:i A` + ` UTC`, e.g. `Sat, Jan 3, 2026 3:04 AM UTC`. If `settings.timezone` is set and isn't `UTC`, show the local time first, in the same format followed by the zone abbreviation (PHP `T`, e.g. `CST`; some zones give an offset such as `+04`), then the UTC time in brackets. Use `Intl.DateTimeFormat(..., { timeZoneName: 'short' })` and check its abbreviations against PHP's for the timezones your users have set.
+- **Submission time:** `entry.created_at` in UTC, formatted as PHP `D, M j, Y g:i A` + ` UTC`, e.g. `Sat, Jan 3, 2026 3:04 AM UTC`. If `settings.timezone` is set and isn't `UTC`, show the local time first, in the same format followed by the zone abbreviation (PHP `T`, e.g. `CST`; some zones give an offset such as `+04`), then the UTC time in brackets. Use `Intl.DateTimeFormat(..., { timeZoneName: 'short' })` and check its abbreviations against PHP's. No production form sets `settings.timezone` today (every value is `null`, confirmed 2026-10-03), so every alert currently shows UTC only. Cover the local-time path with the `FormEntryAlertsTest` cases plus a PHP-generated table of `T` abbreviations for common zones. Treat any other zone as best effort until someone uses it.
 - **Fields:** `mapFormData` (ch. 4 §4.6) in `order` order, each shown as `label: value`. `value` is `—` for `null` or `""`, `Yes`/`No` for booleans, arrays joined with `, ` (non-scalar items JSON-encoded), otherwise the string. With no fields, show "This form has no fields."
 - **HTML part:** an intro line (`A new entry was submitted to <strong>{form}</strong> on {time}.`, with the local time bolded and the UTC time greyed in brackets) and a two-column table of label/value with `white-space: pre-wrap` values. HTML-escape every interpolated value. Never render submitted content as Markdown or links.
 - **Text part:** the same intro line without markup, a blank line, then one `label: value` line per field. Laravel's Blade template HTML-escapes the text part too (`&` shows as `&amp;`). Don't copy that: emit plain text.

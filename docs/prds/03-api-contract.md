@@ -139,7 +139,7 @@ List items **inside** `data` use the same resource shape as the single resource,
 | Bad or expired download signature                        | 403    | `{"message":"Invalid signature."}`                                       |
 | Unknown or soft-deleted ID, invalid ULID, unknown route  | 404    | `{"message":"..."}` (text not contractual)                               |
 | Wrong method on a known path                             | 405    | `{"message":"The POST method is not supported for route api/v1/forms/x. Supported methods: GET, HEAD, PUT, PATCH, DELETE."}` (text not contractual) plus an `Allow` header. Express returns 404 by default, so add a fallback that checks the path against the route table |
-| Body too large                                           | 413    | `{"message":"..."}`                                                      |
+| Body too large (over `post_max_size`, 2 MB in production) | 413   | Laravel's `ValidatePostSize` throws `PostTooLargeException` with an empty message. Capture the exact body from the reference app |
 | Force-deleting an entry that isn't deleted               | 409    | `{"message":"Only deleted entries can be permanently deleted."}`         |
 | Downloading an export that isn't completed               | 409    | `{"message":"This export is not ready."}`                                |
 | Downloading an expired export                            | 410    | `{"message":"This export has expired."}`                                 |
@@ -234,7 +234,7 @@ Implement this as a `FormOwnershipGuard` that resolves `:form`, `:entry`, `:noti
   - `entries_count`: entries where `spam = false OR spam IS NULL`.
   - `unread_entries_count`: the same, and `read_at IS NULL`.
   - `spam_entries_count`: entries where `spam = true`.
-- `?sort=`: one of `created_at` (default), `updated_at`, `name`, each optionally prefixed with `-` for descending. Order by the column (for `name`, by `lower(name)`), then by `id` in the same direction. Any other value, including a combined sort, → 422 on `sort` ("The selected sort is invalid.").
+- `?sort=`: one of `created_at` (default), `updated_at`, `name`, each optionally prefixed with `-` for descending. Order by the column (for `name`, by `lower(name)`), then by `id` in the same direction. Production Laravel uses SQLite, where `lower()` folds only ASCII letters and the comparison is by bytes. On Postgres, use `ORDER BY lower(name) COLLATE "C"` to get the same byte order. Postgres's `lower()` also folds non-ASCII letters (`É` → `é`), which SQLite's doesn't. Accept that difference for non-ASCII names. Any other value, including a combined sort, → 422 on `sort` ("The selected sort is invalid.").
 - `?filter[active]=`: `true`, `false`, `1` or `0` → `WHERE active = …`. Any other value → 422 on `filter.active`. Any other key under `filter` → 422 on `filter`.
 
 **Create** (`POST /forms`) body:
@@ -350,7 +350,13 @@ On create, set `user_id` from the auth user and ignore it if the body contains i
 
   With `TRUSTED_PROXIES=*`, `X-Forwarded-For: 1.1.1.1, 2.2.2.2` and a proxy socket, the result is `2.2.2.2,1.1.1.1`. Laravel's `$request->ip()` is the first entry (`2.2.2.2`). Every per-IP rate limit and the login throttle key use that value. Capture a fixture from the reference app to confirm it.
 
-  The Next and Nuxt clients call the API from their own servers. They set `X-Forwarded-For` to the browser's IP (`lib/backend/client.ts` in Next, `server/utils/backend.ts` in Nuxt), so that the login and password-reset throttles count each browser separately. That only works when the client servers' addresses are covered by `TRUSTED_PROXIES`. Otherwise every user of a client shares one throttle bucket. Carry the production `TRUSTED_PROXIES` value over at cut-over.
+  The Next and Nuxt clients call the API from their own servers. They set `X-Forwarded-For` to the browser's IP (`lib/backend/client.ts` in Next, `server/utils/backend.ts` in Nuxt), so that the login and password-reset throttles count each browser separately. That only works when the client servers' addresses are covered by `TRUSTED_PROXIES`. Otherwise every user of a client shares one throttle bucket.
+
+**Production today:** `TRUSTED_PROXIES` is empty, and the front end runs on the same host (`localhost:3000`) (confirmed 2026-10-03). Laravel therefore ignores the forwarded header, and every request through the front end comes from `127.0.0.1`. As a result:
+- All users share the front end's single 6/min forgot/reset-password limit.
+- The login throttle is keyed by `email|127.0.0.1`. That's still separate for each email, but a failed attempt from anywhere counts toward everyone's lockout on that email.
+
+Setting `TRUSTED_PROXIES=127.0.0.1` fixes this. It's a configuration change rather than a code change, so it isn't a parity difference. **Decided 2026-10-03:** set it on Laravel now, and give Nest the same value. Capture the reference fixtures with this setting. Public submissions post directly from customers' browsers, so they're unaffected.
 - `referer` = the `Referer` header truncated to 255 characters, or `null` when missing or empty.
 - `user_agent` = the `User-Agent` header or `null`.
 - `spam` = `true` if a spam reason was given, otherwise `false`. `spam_score` = 0. `spam_reason` = the reason or `null`.
@@ -420,7 +426,7 @@ Update only the keys that were sent. Reload, then return the entry resource.
 8. Emit `form-entry.created`, then `form-entry.submitted` (ch. 6).
 9. Return **201** `{ "data": { "redirect": <settings.redirect>, "message": <settings.message> } }`. Each is `null` when unset or when the form has no settings. Never redirect with a 3XX. Honeypot hits get exactly the same response.
 
-Accept JSON, `application/x-www-form-urlencoded` and `multipart/form-data` bodies, since plain HTML forms post the latter two. Prepare the input as in §3.2 (_Request input_): PHP key rewriting, trimming, empty strings to `null`, and the query string merged in. The domain check is the access control, not CORS.
+Accept JSON, `application/x-www-form-urlencoded` and `multipart/form-data` bodies, since plain HTML forms post the latter two. Multipart is a confirmed product requirement (2026-10-03), not just parity. File parts in a multipart submission are ignored: they aren't parsed into `input`, because no supported rule accepts files. Prepare the input as in §3.2 (_Request input_): PHP key rewriting, trimming, empty strings to `null`, and the query string merged in. The domain check is the access control, not CORS.
 
 ## 3.7 Exports
 

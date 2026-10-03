@@ -28,28 +28,28 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 ## Phase 1: Setup and structure (ch. 1)
 
-- [ ] Scaffold Nest 11 with `strict` TypeScript and install the §1.1 packages (no `class-validator`, `ua-parser-js@^1`). Check each package loads under Jest
-- [ ] Validated config per concern; fail fast at boot when a required variable is missing, or when `TZ` isn't `UTC` (§1.2)
-- [ ] Module folder layout from §1.3, including empty folders
-- [ ] `ApiV1Module` mounted with `RouterModule` at `api/v1`, with no global prefix
-- [ ] `GET /up` returns 200; `/` redirects to `/docs/api` (check what Laravel does for non-GET methods)
-- [ ] Express 5: `query parser` set to `extended`; no direct use of `req.body`
-- [ ] `TRUSTED_PROXIES` → `trust proxy` (`*` → `1`, not `true`)
-- [ ] CORS via `app.use('/api', cors({ origin: '*', maxAge: 0 }))`
-- [ ] Body parsers: JSON (malformed body → `{}`, `BODY_LIMIT`), urlencoded, multipart fields; 413 as JSON
-- [ ] JSON errors everywhere, including 404 for unknown routes and 405 with `Allow`
-- [ ] Swagger at `/docs/api`, spec JSON at `/docs/api.json`
-- [ ] `npm run worker` entrypoint: processors + event listeners, no HTTP
-- [ ] `docker-compose.yml` for Redis and Postgres
-- [ ] Shared `ioredis` connection provider (throttler storage + login limiter)
-- [ ] CI Redis service (the throttle e2e tests need real Redis)
-- [ ] ESLint + Prettier with `no-floating-promises` and `no-explicit-any`
-- [ ] Scripts: `lint`, `typecheck`, `test`, `test:e2e`, `test:contract`, `migration:generate`, `migration:run`, `seed`, `user:create`, `worker`
-- [ ] CI on Node 22: lint, typecheck, tests on SQLite **and** Postgres, `migration:generate --check`
-- [ ] `Dockerfile` (app + worker from one image) (§1.7)
+- [x] Scaffold Nest 11 with `strict` TypeScript and install the §1.1 packages (no `class-validator`, `ua-parser-js@^1`). Check each package loads under Jest (`test/unit/packages.spec.ts`; Nest-11 majors pinned, see Log)
+- [x] Validated config per concern; fail fast at boot when a required variable is missing, or when `TZ` isn't `UTC` (§1.2)
+- [x] Module folder layout from §1.3, including empty folders
+- [x] `ApiV1Module` mounted with `RouterModule` at `api/v1`, with no global prefix
+- [x] `GET /up` returns 200; `/` redirects to `/docs/api` (Laravel: GET/HEAD/OPTIONS → 302, other methods → 419 CSRF; copied)
+- [x] Express 5: `query parser` set to `extended`; no direct use of `req.body`
+- [x] `TRUSTED_PROXIES` → `trust proxy` (`*` → `1`, not `true`); `getClientIps()` in Symfony order (`common/http/trust-proxy.ts`)
+- [x] CORS via `app.use('/api', cors({ origin: '*', maxAge: 0 }))`, echoing the requested method as Laravel does
+- [x] Body parsers: JSON (malformed body → `{}`, `BODY_LIMIT`), urlencoded, multipart fields; 413 as JSON
+- [x] JSON errors everywhere, including 404 for unknown routes and 405 with `Allow` (Laravel messages and verb order)
+- [x] Swagger at `/docs/api`, spec JSON at `/docs/api.json`
+- [x] `npm run worker` entrypoint: processors + event listeners, no HTTP (none registered until phase 6)
+- [x] `docker-compose.yml` for Redis and Postgres (host ports overridable with `REDIS_HOST_PORT` / `POSTGRES_HOST_PORT`)
+- [x] Shared `ioredis` connection provider (throttler storage + login limiter)
+- [x] CI Redis service (the throttle e2e tests need real Redis)
+- [x] ESLint + Prettier with `no-floating-promises` and `no-explicit-any`
+- [x] Scripts: `lint`, `typecheck`, `test`, `test:e2e`, `test:contract`, `migration:generate`, `migration:run`, `seed`, `user:create`, `worker` (`seed` and `user:create` are stubs that exit 1 until phases 2 and 4)
+- [x] CI on Node 22: lint, typecheck, tests on SQLite **and** Postgres, `migration:generate --check`
+- [x] `Dockerfile` (app + worker from one image) (§1.7)
 
 **Done when**
-- [ ] ch. 1 Done-when list passes (including the Express 5 query check, the proxy IP check, the CI matrix and the Docker build)
+- [~] ch. 1 Done-when list passes (including the Express 5 query check, the proxy IP check, the CI matrix and the Docker build). Everything was checked locally on 2026-10-03: `start:dev`, the worker on Redis, e2e on SQLite and Postgres, the drift check (passes clean, fails with an unmigrated entity), and the Docker image running app, worker and `migration:run`. Still open: the first green CI run, which needs a push
 
 ## Phase 2: Data model (ch. 2)
 
@@ -59,8 +59,8 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - [ ] `spam_score` transformer: rounds to 2 decimals on write, reads back as a number
 - [ ] `jsonColumnType()`: `simple-json` on SQLite, `json` (not `jsonb`) on Postgres
 - [ ] `withSettingsDefaults()` helper and `orderedSchema()` (stable sort)
-- [ ] Route IDs: invalid ULID → 404; case handling follows the production database (open question)
-- [ ] Hand-written migrations, one per table, in this order: users → password_reset_tokens → denied_tokens → forms → form_entries → form_notifications → form_entry_exports. Tables stay readable by Laravel
+- [ ] Route IDs: invalid ULID → 404; exact, case-sensitive match (production is SQLite `BINARY`)
+- [ ] Hand-written migrations, one per table, in this order: users → password_reset_tokens → denied_tokens → forms → form_entries → form_notifications → form_entry_exports. Laravel's table and column names
 - [ ] Factories with the `active()` / `inactive()` states and `withBasicSchema`
 - [ ] Seed: Test User plus 5 forms, 5 entries and 5 notifications
 
@@ -116,7 +116,6 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - [ ] Honeypot name: generation before validation, clash check after
 - [ ] `buildRules()` and port `BuildValidationRulesTest` (3)
 - [ ] F7: unsupported rule names → 422 on `schema.N.rules`
-- [ ] Run the §4.3 SQL check against production schemas, including wildcard and file rules
 - [ ] Port `FormControllerTest` (41) and `GenerateHoneypotNameTest` (2)
 - [ ] Contract cases, with F7 tagged
 
@@ -170,7 +169,7 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 - [ ] Staging: Postgres, Redis with persistence, private storage disk, secrets
 - [ ] Migrations run as a release step
-- [ ] Logging and error reporting matching what Laravel uses; request IDs
+- [ ] JSON logs to stdout with request IDs (Laravel only writes a local log file; no error reporting to match)
 - [ ] Readiness check (database + Redis) if the platform supports one
 - [ ] `TRUSTED_PROXIES` set for the staging proxy chain and checked
 - [ ] Public submission end to end on staging (browser form → spam check → alert email → Postmark bounce)
@@ -182,19 +181,16 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - [ ] Client types check: Next and Nuxt `api.d.ts` regenerated from the Nest spec, and both clients typecheck (ch. 7 §7.2)
 - [ ] §7.3 new tests: F7, F9, rate limiting, quirks, cross-cutting, input preparation, proxies, token sources, validation behaviour, background work
 - [ ] Contract suite green against Laravel and Nest (only F7 and F9 differ; `X-RateLimit-*` ignored)
-- [ ] `scripts/import-from-laravel.ts` (ch. 2 §2.6), including type conversion and the schema-shape assertion
-- [ ] Import rehearsed on a copy of production data; contract suite green against the imported copy
-- [ ] Rollback rehearsed: Laravel running against the new Postgres database
+- [ ] Fresh-deploy check on staging: migrations on an empty database, `user:create`, create a form, submit to it (no data import, ch. 2 §2.6)
 
 ### Cut-over checklist (§7.5)
-- [ ] Every rule used by production form schemas is supported
-- [ ] Write freeze announced; Laravel queue drained; Laravel worker and scheduler stopped
+- [ ] Laravel worker and scheduler stopped at the switch
 - [ ] Nest worker(s) running, with the prune job scheduler registered
 - [ ] `JWT_SECRET` rotated; users can log in
 - [ ] `TRUSTED_PROXIES` checked against production's proxy chain, including the Next/Nuxt servers that forward browser IPs
 - [ ] Postmark webhook pointed at the new service; a test bounce records an `error`
-- [ ] Browser form on a customer site submits successfully (CORS, domain check, honeypot, multipart if used)
-- [ ] Rollback: Laravel kept deployable against the new database for one release cycle
+- [ ] Browser forms on a customer site submit successfully (CORS, domain check, honeypot), including a multipart form
+- [ ] Rollback: Laravel and its SQLite file kept deployable for one release cycle; switch traffic back if needed
 - [ ] Product owner has signed off F7, F9, the `X-RateLimit-*` difference and the open decisions
 
 ## Risks
@@ -203,26 +199,34 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 2. **Proxy and IP handling.** Mapping `*` to Express's `true` would let clients fake their IP and get around every rate limit. Express's IP order also differs from Symfony's. Mitigation: map `*` to `1`, port `getClientIps`, and use a captured fixture.
 3. **Express 5 defaults.** The `simple` query parser breaks every `filter[...]` parameter. Mitigation: a ch. 1 done-when check.
 4. **Exact output.** Pagination `meta.links`, CSV quoting and email time formats (PHP `T` vs `Intl`) are the likely places parity breaks. JSON is compared as parsed values with key order; CSV byte for byte. Mitigation: golden fixtures from Laravel in phase 3.
-5. **Rule coverage and PHP behaviour.** Unknown production rules, wildcards, file rules, and edge cases in `email`, `url`, `date`, `numeric` and `timezone`. Mitigation: the §4.3 SQL check before phase 5a ends, and the PHP-generated corpus.
-6. **SQLite vs Postgres.** Counts and numerics come back as strings, `jsonb` reorders keys, timestamps and timezones, collation. Mitigation: CI e2e against Postgres, plus the migration drift check.
+5. **Rule coverage and PHP behaviour.** There's no production data, so no existing rules need covering. The risk is edge cases in `email`, `url`, `date`, `numeric` and `timezone`. Mitigation: the PHP-generated corpus.
+6. **SQLite vs Postgres.** Production Laravel is on SQLite, and Nest moves to Postgres. Counts and numerics come back as strings, `jsonb` reorders keys, timestamps and timezones, and `lower(name)` sorting needs `COLLATE "C"`. Mitigation: CI e2e against Postgres, plus the migration drift check.
 
 ## Open questions
 
-- [ ] Does production store exports on S3 (`FILESYSTEM_DISK`)? If so, add `@aws-sdk/client-s3`
-- [ ] Is a copy of the production database available for the import rehearsal?
-- [ ] Which database engine and version does Laravel production use? This drives the import script, case-insensitive route IDs and collation
-- [ ] Production PHP limits: `post_max_size` (→ `BODY_LIMIT`) and `max_input_vars` (→ `parameterLimit`)
-- [ ] Production `app.timezone`, which the import needs to read stored timestamps
-- [x] Does any client authenticate with `?token=` or a body `token`? No: Next and Nuxt both send `Authorization: Bearer` (checked 2026-10-03). Still supported for parity
-- [ ] Do any customer forms post `multipart/form-data`, or use `file`/`image` rules?
-- [ ] What does Laravel use for logging and error reporting in production?
 - [ ] Product owner: should rule names be checked on save (F7)? Default: yes
 - [ ] Product owner: keep the owner-only authenticated entry-create endpoint? Default: keep it
+
+### Answered
+
+- [x] Real production data? None. The supplied dump is seed data, so there's no import or rehearsal, and the service starts empty (2026-10-03)
+- [x] `TRUSTED_PROXIES=127.0.0.1` on Laravel now: yes (2026-10-03). Same value for Nest
+- [x] Multipart customer forms: required (2026-10-03). File parts are ignored
+- [x] Exports storage: `FILESYSTEM_DISK=local` (`storage/app/private`). No S3 client (2026-10-03)
+- [x] Production database: SQLite 3.51, UTF-8, default `BINARY` collation, so route IDs are case-sensitive (2026-10-03)
+- [x] PHP limits: `post_max_size = 2M` → `BODY_LIMIT=2mb`; `max_input_vars = 1000` → `parameterLimit: 1000` (2026-10-03)
+- [x] `app.timezone`: `UTC`, hard-coded in `config/app.php` (2026-10-03)
+- [x] Logging: Laravel's `single` file log only, with no error-reporting service (2026-10-03)
+- [x] `settings.timezone` in use: none; every value is `null` (2026-10-03)
+- [x] `TRUSTED_PROXIES`: empty in production; the front end runs on `localhost:3000` on the same host (2026-10-03). Nest defaults to `PORT=8000`
+- [x] Does any client authenticate with `?token=` or a body `token`? No: Next and Nuxt both send `Authorization: Bearer` (2026-10-03). Still supported for parity
 - [x] Product owner: copy the shared submission/password-reset rate-limit counter? No: fixed as F9 (2026-10-03)
-- [ ] Which timezones are set in production `settings.timezone`? Their abbreviations need checking against PHP's
 
 ## Log
 
 - 2026-10-03: Plan created from `docs/prds/README.md`.
 - 2026-10-03: Review against the Laravel source (including vendor) added: input preparation (trim, empty → null, query merge, multipart, malformed JSON), Symfony IP order and `*` proxy semantics, Express 5 defaults, tymon token sources, the shared throttle key, JSON parity defined as parsed values with key order, 405 handling, the validation engine for every endpoint (no `class-validator`), `Clock` and `timestamp(0)`, `json` over `jsonb`, Postgres CI and drift check, BullMQ job scheduler and `JobDispatcher`, `ua-parser-js` v1, the deployment phase, and rollback against the new database. Phases reordered: validation engine in phase 3, ownership guard after auth, phase 5 split, contract suite started in phase 3. Rate limiter design left for discussion.
 - 2026-10-03: Checked the Next and Nuxt clients. Both generate `api.d.ts` from `/docs/api.json` (the OpenAPI spec is now semi-contractual, with a client typecheck gate), pass the browser's IP on in `X-Forwarded-For`, and read only `Retry-After`. Decided: `@nestjs/throttler` + nest-lab Redis storage with `LaravelThrottlerGuard`, a hand-written login limiter, no `X-RateLimit-*` headers, and F9 (separate submission and password-reset counters).
+- 2026-10-03: Production facts recorded: SQLite 3.51 (`BINARY` collation), local disk, `post_max_size` 2M, UTC, file logging only, no form timezones, empty `TRUSTED_PROXIES` with the front end on localhost:3000. The supplied dump appears to be seed data. Docs updated: case-sensitive route IDs, SQLite import, `COLLATE "C"` name sort, `BODY_LIMIT` 2mb, `PORT` 8000, no S3, rollback needs `pdo_pgsql`, `TRUSTED_PROXIES=127.0.0.1` recommended.
+- 2026-10-03: No real production data, so the import script, rehearsal, write freeze and queue drain are dropped, and rollback simplified. `TRUSTED_PROXIES=127.0.0.1` decided for Laravel and Nest. Multipart confirmed as a requirement.
+- 2026-10-03: Phase 1 scaffolded. Nest 12 has shipped, and the latest `@nestjs/*` majors need it or are ESM-only (Jest can't load them). `@nest-lab/throttler-storage-redis` doesn't support Nest 12, so we pinned Nest 11 lines: `config@4`, `event-emitter@3`, `jwt@11`, `typeorm@11`, `bullmq@11`, `swagger@11`, plus `typeorm@0.3` (unpinned resolves to 1.x) and `faker@9` (10 is ESM-only). `bcrypt@6` rejects `$2y$` hashes, so phase 4 must rewrite them to `$2b$`; checked against a real PHP hash. Laravel root routes probed: non-GET `/` → 419 CSRF; 404/405 messages copied.

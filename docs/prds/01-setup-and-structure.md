@@ -7,24 +7,27 @@ npm i -g @nestjs/cli
 nest new form-handler-headless-nest --package-manager npm --strict
 cd form-handler-headless-nest
 
-npm i @nestjs/typeorm typeorm better-sqlite3 pg ulid \
-      validator \
-      @nestjs/config @nestjs/event-emitter \
+npm i @nestjs/typeorm@^11 typeorm@^0.3 better-sqlite3 pg ulid \
+      validator bytes cors multer \
+      @nestjs/config@^4 @nestjs/event-emitter@^3 \
       @nestjs/throttler @nest-lab/throttler-storage-redis ioredis \
-      @nestjs/jwt bcrypt \
-      @nestjs/bullmq bullmq \
+      @nestjs/jwt@^11 bcrypt \
+      @nestjs/bullmq@^11 bullmq \
       nodemailer postmark \
       ua-parser-js@^1 csv-stringify \
-      @nestjs/swagger
-npm i -D @types/bcrypt @types/nodemailer @types/validator @types/ua-parser-js supertest @types/supertest @faker-js/faker
+      @nestjs/swagger@^11
+npm i -D @types/bcrypt @types/nodemailer @types/validator @types/ua-parser-js @types/pg @types/better-sqlite3 \
+      @types/bytes @types/cors @types/multer supertest @types/supertest @faker-js/faker@^9
 ```
 
-- Add `@aws-sdk/client-s3` only if production stores exports on S3 (check `FILESYSTEM_DISK` on the Laravel host).
+- No S3 client: production uses `FILESYSTEM_DISK=local` (files under `storage/app/private`), confirmed 2026-10-03. The storage interface has a local-directory implementation only.
 - Not installed on purpose: `class-validator` and `class-transformer`, because request validation uses the ch. 4 rule engine (README, _Technology choices_). `@nestjs/schedule` isn't installed either: the hourly prune is a BullMQ job scheduler (§1.5).
 - Pin `ua-parser-js` to v1. v1 is MIT; v2 is AGPL-3.0.
 - `multer`, which parses multipart bodies, already comes with `@nestjs/platform-express`.
 - `ioredis` is a peer dependency of the throttler storage. BullMQ uses it too. Create one Redis connection provider and share it between the throttler storage and the login limiter. BullMQ needs its own connections, because blocking workers can't share one.
 - Nest compiles to CommonJS, and Jest runs through `ts-jest`. Some current major versions are ESM-only, so check each package loads under Jest before pinning it.
+- **Pinned majors (checked 2026-10-03).** Nest 12 is out, and the `@nestjs/*` packages' latest majors (`config` 12, `event-emitter` 12, `jwt` 12, `typeorm` 12, `bullmq` 12, `swagger` 12) either need Nest 12 or are ESM-only. `@nest-lab/throttler-storage-redis` doesn't support Nest 12 yet, so stay on Nest 11 and pin the versions above. `@faker-js/faker` 10 is ESM-only; use 9. An unpinned `typeorm` resolves to 1.x; the README specifies 0.3. `test/unit/packages.spec.ts` loads every package under Jest.
+- **bcrypt.** `bcrypt` 6 rejects PHP's `$2y$` prefix (`compareSync` returns `false`). Rewrite `$2y$` to `$2b$` before comparing (ch. 5). The package-load test checks this against a real PHP hash.
 
 ## 1.2 Configuration
 
@@ -41,7 +44,8 @@ Use `@nestjs/config`, with one validated config object per concern. These enviro
 | `PASSWORD_RESET_URL`                                      | same                       | Client page that reset emails link to. Default `{APP_URL}/reset-password`                       |
 | `TRUSTED_PROXIES`                                         | same                       | Comma-separated IPs/CIDRs, or `*`, which trusts only the calling IP. Empty means trust none (§1.4) |
 | `QUEUE_DRIVER`                                            | `QUEUE_CONNECTION`         | `bullmq` (default) or `sync`. `sync` runs jobs inline in the request, as `QUEUE_CONNECTION=sync` does. The contract suite runs the server this way (ch. 7 §7.4) |
-| `BODY_LIMIT`                                              | PHP `post_max_size`        | Largest request body accepted. Match production's `post_max_size` (PHP default `8M`)            |
+| `BODY_LIMIT`                                              | PHP `post_max_size`        | Largest request body accepted. Default `2mb`, matching production's `post_max_size = 2M`        |
+| `PORT`                                                    | –                          | Default `8000`. The front end already uses `3000` on the production host                        |
 | `TZ`                                                      | `app.timezone`             | Must be `UTC`. Fail at boot otherwise (ch. 2 §2.1)                                              |
 | `EXPORT_DOWNLOAD_URL_TTL`                                 | same                       | Minutes a signed export `download_url` stays valid. Default 5                                   |
 | `FILESYSTEM_DISK` (+ S3 vars if used)                     | same                       | Where export CSVs are written. Must be private                                                  |
@@ -136,12 +140,12 @@ const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyPa
 app.set('query parser', 'extended'); // Express 5 defaults to 'simple', which breaks filter[read]=1
 app.set('trust proxy', trustProxySetting(process.env.TRUSTED_PROXIES)); // false when empty
 app.use('/api', cors({ origin: '*', maxAge: 0 })); // ch. 3 §3.1
-registerBodyParsers(app, process.env.BODY_LIMIT ?? '8mb'); // JSON, urlencoded, multipart fields
+registerBodyParsers(app, process.env.BODY_LIMIT ?? '2mb'); // JSON, urlencoded, multipart fields
 app.use(normaliseRequestInput); // trim + empty -> null, after the parsers (ch. 3 §3.2)
 app.useGlobalFilters(new LaravelExceptionFilter());
 setupSwagger(app, 'docs/api', { jsonDocumentUrl: 'docs/api.json' }); // clients fetch the JSON (ch. 7 §7.2)
 app.enableShutdownHooks();
-await app.listen(process.env.PORT ?? 3000);
+await app.listen(process.env.PORT ?? 8000);
 ```
 
 - **Express 5.** Nest 11 uses Express 5. Three defaults matter here:
@@ -150,7 +154,7 @@ await app.listen(process.env.PORT ?? 3000);
   - Wildcards need a name (`/api/*splat`). Mounting with `app.use('/api', …)` avoids wildcards altogether.
 - **Body parsers.** Turn off Nest's built-in parser and register your own (ch. 3 §3.2, _Request input_):
   - `json` with `limit: BODY_LIMIT`. A body that fails to parse becomes `{}`, which then fails validation with 422, as in Laravel, instead of Nest's 400.
-  - `urlencoded({ extended: true, limit: BODY_LIMIT, parameterLimit: 1000 })`. `1000` is PHP's `max_input_vars` default; use production's value.
+  - `urlencoded({ extended: true, limit: BODY_LIMIT, parameterLimit: 1000 })`. Production's `max_input_vars` is `1000`. PHP silently drops variables beyond the limit, whereas body-parser answers 413. Accept that difference; a form never posts that many fields.
   - `multipart/form-data` text fields through `multer().none()`, or `multer().any()` if production schemas use file rules.
   - Answer bodies over the limit with JSON 413.
 - **Trusted proxies.** Map `TRUSTED_PROXIES` onto Express's `trust proxy`:
@@ -161,7 +165,7 @@ await app.listen(process.env.PORT ?? 3000);
   Forwarded headers then set `req.protocol` and `req.hostname`, which feed absolute URLs. Express's `req.ips` order differs from Symfony's, so build the client IP list with the helper in ch. 3 §3.5, not `req.ips`. Laravel Cloud, Forge and Vapor hosts are trusted automatically in Laravel. If you deploy to one of those, set `TRUSTED_PROXIES` explicitly.
 - **Routing.** Don't use `app.setGlobalPrefix('api/v1')` globally, because `GET /up` and `/` live at the root. Put the controllers inside an `ApiV1Module` mounted with `RouterModule.register([{ path: 'api/v1', module: ApiV1Module }])`.
 - **Root routes.** `GET /up` returns 200 (Laravel health route). Any method on `/` redirects (302) to the API docs at `/docs/api`.
-  Laravel registers `/` in the `web` middleware group, which includes CSRF checks, so `POST /` may answer 419 rather than 302. Check this against the reference app and copy what it does.
+  Laravel registers `/` in the `web` middleware group, which includes CSRF checks. Checked against the reference app (2026-10-03): `GET`, `HEAD` and `OPTIONS /` → 302 to `/docs/api` (absolute, on the request's host); `POST`, `PUT`, `PATCH` and `DELETE /` → 419 `{"message":"CSRF token mismatch."}`. Nest copies both.
 - **JSON everywhere.** Every error is JSON, including for requests without `Accept: application/json`. Guests are never redirected. This includes unknown routes (404) and the wrong method on a known route: Laravel returns **405** with an `Allow` header, where Express would return 404 (ch. 3 §3.2).
 - **Timezone.** Refuse to boot unless `process.env.TZ === 'UTC'`. The `pg` driver reads `timestamp without time zone` columns in the process's local timezone (ch. 2 §2.1).
 
@@ -188,7 +192,7 @@ The definition of done needs a staging environment, so plan for it from the star
 - A `Dockerfile`: a multi-stage build that runs `node dist/main.js`, with the worker using the same image and `node dist/worker.js`.
 - Migrations run once per deploy, as a release step (`npm run migration:run`), never on app boot.
 - Provision Postgres, Redis (with persistence on, because BullMQ keeps state there), secrets and a private storage disk for staging and for production.
-- Logging and error reporting: find out what the Laravel app uses (`config/logging.php`, any Sentry or Flare package) and give the Nest service the same. Use structured JSON logs with a request ID.
+- Logging: production Laravel uses only its built-in logging (`LOG_CHANNEL=stack` → `single` → `storage/logs/laravel.log`). There's no error-reporting service. Nest logs structured JSON to stdout with a request ID, and the host collects it. Adding error reporting is optional and outside parity.
 - Health: `GET /up` stays a liveness check. Add a readiness check that pings the database and Redis, if the platform supports a second path.
 
 ## Done when

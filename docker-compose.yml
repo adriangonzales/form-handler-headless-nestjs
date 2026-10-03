@@ -1,0 +1,34 @@
+# Local services. `docker compose up -d`, then use the URLs in .env.example.
+# Override REDIS_HOST_PORT / POSTGRES_HOST_PORT if those ports are taken.
+services:
+  redis:
+    image: redis:7-alpine
+    # BullMQ keeps its state in Redis, so persist it (ch. 1 §1.7).
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_HOST_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: forms
+      POSTGRES_PASSWORD: forms
+      POSTGRES_DB: forms
+    ports:
+      - '${POSTGRES_HOST_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U forms']
+      interval: 5s
+      retries: 10
+
+volumes:
+  redis-data:
+  postgres-data:
