@@ -8,7 +8,8 @@ process.env.APP_KEY ??= 'base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=';
 process.env.JWT_SECRET ??= 'testing-jwt-secret';
 process.env.DB_TYPE ??= 'sqlite';
 process.env.DB_URL ??= ':memory:';
-process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
+// DB 15: throttle tests FLUSHDB between cases.
+process.env.REDIS_URL ??= 'redis://127.0.0.1:6379/15';
 process.env.QUEUE_DRIVER ??= 'sync';
 process.env.MAIL_MAILER ??= 'log';
 process.env.MAIL_FROM_ADDRESS ??= 'hello@example.com';

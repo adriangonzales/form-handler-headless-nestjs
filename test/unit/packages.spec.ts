@@ -7,7 +7,6 @@
  * Static imports on purpose: they compile to `require()`, as app code does.
  */
 import { faker } from '@faker-js/faker';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -60,9 +59,9 @@ describe('packages load under Jest', () => {
     expect(validator.isEmail('a@example.com')).toBe(true);
   });
 
-  it('ioredis and the nest-lab throttler storage', () => {
+  it('ioredis', () => {
     const redis = new Redis({ lazyConnect: true });
-    expect(new ThrottlerStorageRedisService(redis)).toBeDefined();
+    expect(redis.status).toBe('wait');
     redis.disconnect();
   });
 

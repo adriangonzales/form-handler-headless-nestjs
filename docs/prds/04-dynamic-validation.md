@@ -106,6 +106,18 @@ If a production form uses a rule outside this table, add support for it before c
 
 Result against the dump supplied on 2026-10-03: all 15 forms have an empty schema (`[]`), so no rules are in use. That dump is seed data, and production has no real forms (confirmed 2026-10-03), so there are no existing rules to cover. The minimum set above is the target, and rules that need the file system (`file`, `image`, `mimes`) are out of scope.
 
+**Corpus results worth knowing (Laravel 13.33, 2026-10-04):**
+
+- `date` rejects relative forms (`now`, `tomorrow`, `next monday`, `+1 week`) and a bare year: `date_parse()` leaves the date fields empty, so `checkdate()` fails. It accepts `20260102`, `1/2/26`, `Jan 2 2026`, `2026-1-5` and ISO timestamps with offsets.
+- `email` accepts `user@localhost`, quoted local parts, `[IPv4]`/`[IPv6:…]` literals, UTF-8 and local parts over 64 characters. It rejects `_` or a leading `-` in a domain label, a trailing dot, and `..`.
+- A whitespace-only string skips every non-implicit rule and passes through to `validated()` unchanged.
+- **Key order:** explicit attributes keep their rule-array position, and wildcard expansions are appended after them. `errors` and `validated()` both follow this, so `settings` comes before `schema.0.id`.
+- Wildcard attributes appear raw in messages (`schema.0.id`). Other names go through `Str::snake()` and then `_` → space, which turns a ULID key into `01 k6 b6 x z…`.
+- `distinct` flags every duplicate after the first. `array:keys` with an unknown key fails with the plain "must be an array" message.
+- An unknown rule name throws in Laravel (500). The engine throws `UnsupportedRuleError`, which is why F7 rejects such rules on save.
+
+The engine (`src/common/validation/`) matches all 5,148 single-rule cases and 54 scenarios (`test/unit/validation-corpus.spec.ts`).
+
 ## 4.4 Interface
 
 ```ts

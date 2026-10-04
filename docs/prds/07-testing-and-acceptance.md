@@ -110,11 +110,13 @@ Some tests reach into Laravel internals (`Event::fake`, `Mail::fake`, `Queue::fa
 Commit the fixtures, together with the script that produced them, under `test/fixtures/laravel/`.
 
 ```bash
-# against Laravel
-CONTRACT_BASE_URL=http://localhost:8000 CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
-# against NestJS (PORT=8001 locally, so both can run at once; 3000 is the front end)
-CONTRACT_BASE_URL=http://localhost:8001 CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
+npm run contract:laravel   # boots the reference app on a fresh SQLite DB (port 8010), seeds the contract user, runs the suite
+npm run build && npm run contract:nest   # the same for this app (port 8011)
+# or against any running server:
+CONTRACT_BASE_URL=… CONTRACT_TARGET=laravel|nest CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
 ```
+
+The runners refuse a port that already answers: on the development machine, Herd's PHP holds `127.0.0.1:8001`, and an earlier run silently tested it instead of Nest. Cases are tagged with the feature they need (`describeFeature('auth', …)`). The Nest run skips features not built yet, and each phase adds its feature to `NEST_FEATURES` in `test/contract/support/target.ts`. `npm run fixtures:capture` re-captures `test/fixtures/laravel/http/captured.json`; the capture is deterministic (fixed clock, ULIDs normalised, tokens redacted). `npm run fixtures:php` regenerates the PHP-derived reference data (messages, timezones, validation corpus, pagination and signed-URL fixtures).
 
 - Seed both databases with the same user (`php artisan user:create` on one side and `npm run user:create` on the other), then create all other data through the API in `beforeAll`. That includes a second user for the ownership cases, and public submissions for entries.
 - Tag the F7 case, so the Laravel run expects the old behaviour (save accepted) and the Nest run expects 422.

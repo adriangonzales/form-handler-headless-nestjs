@@ -1,0 +1,1348 @@
+{
+ "ruleSets": [
+  [
+   "required"
+  ],
+  [
+   "string"
+  ],
+  [
+   "integer"
+  ],
+  [
+   "numeric"
+  ],
+  [
+   "boolean"
+  ],
+  [
+   "accepted"
+  ],
+  [
+   "array"
+  ],
+  [
+   "list"
+  ],
+  [
+   "email"
+  ],
+  [
+   "url"
+  ],
+  [
+   "date"
+  ],
+  [
+   "date_format:Y-m-d"
+  ],
+  [
+   "in:a,b,1"
+  ],
+  [
+   "ulid"
+  ],
+  [
+   "timezone"
+  ],
+  [
+   "missing"
+  ],
+  [
+   "regex:/^[a-z]+$/i"
+  ],
+  [
+   "min:3"
+  ],
+  [
+   "max:3"
+  ],
+  [
+   "between:2,4"
+  ],
+  [
+   "size:3"
+  ],
+  [
+   "numeric",
+   "min:3"
+  ],
+  [
+   "integer",
+   "max:3"
+  ],
+  [
+   "numeric",
+   "between:0,9.99"
+  ],
+  [
+   "array",
+   "min:2"
+  ],
+  [
+   "array",
+   "max:1"
+  ],
+  [
+   "list",
+   "size:2"
+  ],
+  [
+   "nullable",
+   "string"
+  ],
+  [
+   "sometimes",
+   "required"
+  ],
+  [
+   "nullable",
+   "integer"
+  ],
+  [
+   "required",
+   "string",
+   "max:3"
+  ],
+  [
+   "bail",
+   "integer",
+   "min:3"
+  ],
+  [
+   "integer",
+   "min:3"
+  ],
+  [
+   "array:a,b"
+  ],
+  [
+   "sometimes",
+   "required",
+   "numeric",
+   "between:0,9.99"
+  ],
+  [
+   "nullable",
+   "date"
+  ],
+  [
+   "nullable",
+   "boolean"
+  ],
+  [
+   "required",
+   "boolean"
+  ],
+  [
+   "string",
+   "max:255",
+   "email"
+  ]
+ ],
+ "values": [
+  "abc",
+  "ABC",
+  "a",
+  "abcd",
+  "",
+  "  ",
+  "1",
+  "0",
+  "-1",
+  "+5",
+  " 5",
+  "5 ",
+  "015",
+  "1.0",
+  "1.5",
+  "1e3",
+  ".5",
+  "0x1A",
+  "1_000",
+  "9.99",
+  "10",
+  "9.995",
+  "true",
+  "false",
+  "yes",
+  "on",
+  "off",
+  "no",
+  "null",
+  1,
+  0,
+  -1,
+  3,
+  5,
+  1.5,
+  9.99,
+  10,
+  1000,
+  true,
+  false,
+  null,
+  [],
+  [
+   1,
+   2
+  ],
+  [
+   "a",
+   "b",
+   "c"
+  ],
+  {
+   "a": 1
+  },
+  {
+   "a": 1,
+   "b": 2
+  },
+  {
+   "c": 1
+  },
+  "user@example.com",
+  "USER@EXAMPLE.COM",
+  "user@localhost",
+  "\"john doe\"@example.com",
+  "user@[127.0.0.1]",
+  "user@[IPv6:::1]",
+  "user.@example.com",
+  "us..er@example.com",
+  "user@exam_ple.com",
+  "user@-example.com",
+  "üser@example.com",
+  "user@exämple.com",
+  "user+tag@example.co.uk",
+  "a@b",
+  "@example.com",
+  "user@",
+  "user example@x.com",
+  "user@example..com",
+  "x@x.x",
+  "user@example.com.",
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.com",
+  "http://localhost",
+  "https://example.com/path?x=1#f",
+  "example.com",
+  "ftp://files.example.com",
+  "mailto:a@b.c",
+  "http://-bad.com",
+  "http://exa mple.com",
+  "https://127.0.0.1:8080",
+  "javascript:alert(1)",
+  "http://例え.jp",
+  "//example.com",
+  "http://example",
+  "https://example.com:99999",
+  "https://user:pw@example.com/",
+  "HTTPS://EXAMPLE.COM",
+  "http://example.com/a b",
+  "https://example.com/ünï",
+  "2026-02-28",
+  "2026-02-30",
+  "2026-13-01",
+  "2026-01-01 10:00:00",
+  "2026-01-01T10:00:00Z",
+  "2026-01-01T10:00:00+02:00",
+  "2026-01-01T10:00:00.123456Z",
+  "01/02/2026",
+  "13/01/2026",
+  "1/2/26",
+  "now",
+  "today",
+  "tomorrow",
+  "next monday",
+  "last day of february",
+  "+1 week",
+  "Jan 2 2026",
+  "2 January 2026",
+  "2026",
+  "20260102",
+  "1700000000",
+  "not a date",
+  "2026-1-5",
+  "2026-01-05 25:00:00",
+  "UTC",
+  "Europe/London",
+  "Asia/Kolkata",
+  "Asia/Calcutta",
+  "utc",
+  "US/Eastern",
+  "America/Argentina/Buenos_Aires",
+  "Etc/GMT+5",
+  "GMT",
+  "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "01arz3ndektsv4rrffq69g5fav",
+  "8ZZZZZZZZZZZZZZZZZZZZZZZZZ",
+  "01ARZ3NDEKTSV4RRFFQ69G5FA",
+  "b",
+  "abc123",
+  "日本語",
+  "ñandú",
+  "irisxbeep://example.com",
+  "iris.beep://example.com",
+  "http://[::1]/",
+  "http://[1:2:3:4:5:6:7:8]",
+  "http://[1x2::1]/"
+ ],
+ "cases": [
+  {
+   "name": "basic schema, empty body",
+   "rules": {
+    "01K6B6XZ00000000000000000A": [
+     "required"
+    ],
+    "01K6B6XZ00000000000000000B": [
+     "required",
+     "email"
+    ],
+    "01K6B6XZ00000000000000000C": [
+     "required"
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "two errors",
+   "rules": {
+    "name": [
+     "required"
+    ],
+    "email": [
+     "required"
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "one error",
+   "rules": {
+    "name": [
+     "required"
+    ],
+    "email": [
+     "required"
+    ]
+   },
+   "data": {
+    "email": "a@b.c"
+   }
+  },
+  {
+   "name": "unknown keys dropped, sometimes absent omitted",
+   "rules": {
+    "name": [
+     "required"
+    ],
+    "nick": [
+     "sometimes",
+     "string"
+    ],
+    "age": [
+     "integer"
+    ]
+   },
+   "data": {
+    "name": "Ann",
+    "extra": "x",
+    "age": "5"
+   }
+  },
+  {
+   "name": "sometimes present is validated",
+   "rules": {
+    "nick": [
+     "sometimes",
+     "string",
+     "max:2"
+    ]
+   },
+   "data": {
+    "nick": "abc"
+   }
+  },
+  {
+   "name": "nullable null kept",
+   "rules": {
+    "note": [
+     "nullable",
+     "string"
+    ]
+   },
+   "data": {
+    "note": null
+   }
+  },
+  {
+   "name": "non-implicit rule on absent field",
+   "rules": {
+    "age": [
+     "integer",
+     "min:3"
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "non-implicit rule on null",
+   "rules": {
+    "age": [
+     "integer"
+    ]
+   },
+   "data": {
+    "age": null
+   }
+  },
+  {
+   "name": "multiple failures no bail",
+   "rules": {
+    "age": [
+     "integer",
+     "min:3",
+     "in:5,6"
+    ]
+   },
+   "data": {
+    "age": "x"
+   }
+  },
+  {
+   "name": "bail stops",
+   "rules": {
+    "age": [
+     "bail",
+     "integer",
+     "min:3",
+     "in:5,6"
+    ]
+   },
+   "data": {
+    "age": "x"
+   }
+  },
+  {
+   "name": "required failure stops",
+   "rules": {
+    "age": [
+     "required",
+     "integer",
+     "min:3"
+    ]
+   },
+   "data": {
+    "age": null
+   }
+  },
+  {
+   "name": "dotted nested",
+   "rules": {
+    "address.city": [
+     "required",
+     "string"
+    ],
+    "address.zip": [
+     "required"
+    ]
+   },
+   "data": {
+    "address": {
+     "city": "Paris"
+    }
+   }
+  },
+  {
+   "name": "dotted nested validated",
+   "rules": {
+    "address.city": [
+     "required",
+     "string"
+    ]
+   },
+   "data": {
+    "address": {
+     "city": "Paris",
+     "country": "FR"
+    }
+   }
+  },
+  {
+   "name": "wildcard list",
+   "rules": {
+    "tags": [
+     "array"
+    ],
+    "tags.*": [
+     "string",
+     "max:3"
+    ]
+   },
+   "data": {
+    "tags": [
+     "ab",
+     "abcd",
+     5
+    ]
+   }
+  },
+  {
+   "name": "wildcard distinct",
+   "rules": {
+    "ids": [
+     "required",
+     "array",
+     "min:1"
+    ],
+    "ids.*": [
+     "required",
+     "string",
+     "distinct"
+    ]
+   },
+   "data": {
+    "ids": [
+     "a",
+     "b",
+     "a"
+    ]
+   }
+  },
+  {
+   "name": "wildcard missing leaf",
+   "rules": {
+    "items.*.id": [
+     "required"
+    ]
+   },
+   "data": {
+    "items": [
+     {
+      "id": "x"
+     },
+     {
+      "name": "y"
+     },
+     {}
+    ]
+   }
+  },
+  {
+   "name": "wildcard parent absent",
+   "rules": {
+    "items.*.id": [
+     "required"
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "wildcard parent empty list",
+   "rules": {
+    "items": [
+     "array"
+    ],
+    "items.*.id": [
+     "required"
+    ]
+   },
+   "data": {
+    "items": []
+   }
+  },
+  {
+   "name": "form store valid",
+   "rules": {
+    "name": [
+     "required",
+     "string",
+     "max:400"
+    ],
+    "schema": [
+     "nullable",
+     "list"
+    ],
+    "schema.*": [
+     "array:id,order,label,name,rules"
+    ],
+    "schema.*.id": [
+     "required",
+     "ulid",
+     "distinct"
+    ],
+    "schema.*.order": [
+     "required",
+     "integer"
+    ],
+    "schema.*.label": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.name": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.rules": [
+     "nullable"
+    ],
+    "schema.*.rules.*": [
+     "string"
+    ],
+    "settings": [
+     "nullable",
+     "array:redirect,timezone,domains,message,honeypot_enabled,honeypot_name"
+    ]
+   },
+   "data": {
+    "name": "Contact",
+    "schema": [
+     {
+      "label": "Email",
+      "id": "01K6B6XZ00000000000000000A",
+      "order": 2,
+      "rules": [
+       "required",
+       "email"
+      ],
+      "name": null
+     },
+     {
+      "id": "01K6B6XZ00000000000000000B",
+      "order": 1
+     }
+    ],
+    "settings": {
+     "message": "Thanks",
+     "redirect": null
+    }
+   }
+  },
+  {
+   "name": "form store invalid",
+   "rules": {
+    "name": [
+     "required",
+     "string",
+     "max:400"
+    ],
+    "schema": [
+     "nullable",
+     "list"
+    ],
+    "schema.*": [
+     "array:id,order,label,name,rules"
+    ],
+    "schema.*.id": [
+     "required",
+     "ulid",
+     "distinct"
+    ],
+    "schema.*.order": [
+     "required",
+     "integer"
+    ],
+    "schema.*.label": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.name": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.rules": [
+     "nullable"
+    ],
+    "schema.*.rules.*": [
+     "string"
+    ],
+    "settings": [
+     "nullable",
+     "array:redirect,timezone,domains,message,honeypot_enabled,honeypot_name"
+    ]
+   },
+   "data": {
+    "schema": [
+     {
+      "id": "nope",
+      "order": "x",
+      "extra": 1
+     },
+     {
+      "id": "01K6B6XZ00000000000000000A",
+      "order": 1,
+      "rules": [
+       "required",
+       5
+      ]
+     },
+     {
+      "id": "01K6B6XZ00000000000000000A",
+      "order": 2
+     }
+    ],
+    "settings": {
+     "bogus": 1
+    }
+   }
+  },
+  {
+   "name": "form store schema object not list",
+   "rules": {
+    "name": [
+     "required",
+     "string",
+     "max:400"
+    ],
+    "schema": [
+     "nullable",
+     "list"
+    ],
+    "schema.*": [
+     "array:id,order,label,name,rules"
+    ],
+    "schema.*.id": [
+     "required",
+     "ulid",
+     "distinct"
+    ],
+    "schema.*.order": [
+     "required",
+     "integer"
+    ],
+    "schema.*.label": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.name": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.rules": [
+     "nullable"
+    ],
+    "schema.*.rules.*": [
+     "string"
+    ],
+    "settings": [
+     "nullable",
+     "array:redirect,timezone,domains,message,honeypot_enabled,honeypot_name"
+    ]
+   },
+   "data": {
+    "name": "x",
+    "schema": {
+     "a": {
+      "id": "01K6B6XZ00000000000000000A",
+      "order": 1
+     }
+    }
+   }
+  },
+  {
+   "name": "form store null schema",
+   "rules": {
+    "name": [
+     "required",
+     "string",
+     "max:400"
+    ],
+    "schema": [
+     "nullable",
+     "list"
+    ],
+    "schema.*": [
+     "array:id,order,label,name,rules"
+    ],
+    "schema.*.id": [
+     "required",
+     "ulid",
+     "distinct"
+    ],
+    "schema.*.order": [
+     "required",
+     "integer"
+    ],
+    "schema.*.label": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.name": [
+     "nullable",
+     "string"
+    ],
+    "schema.*.rules": [
+     "nullable"
+    ],
+    "schema.*.rules.*": [
+     "string"
+    ],
+    "settings": [
+     "nullable",
+     "array:redirect,timezone,domains,message,honeypot_enabled,honeypot_name"
+    ]
+   },
+   "data": {
+    "name": "x",
+    "schema": null,
+    "settings": null
+   }
+  },
+  {
+   "name": "array keys allowed",
+   "rules": {
+    "filter": [
+     "sometimes",
+     "array:read,starred"
+    ],
+    "filter.read": [
+     "sometimes",
+     "in:true,false,1,0"
+    ]
+   },
+   "data": {
+    "filter": {
+     "read": "1",
+     "starred": "0"
+    }
+   }
+  },
+  {
+   "name": "array keys rejected",
+   "rules": {
+    "filter": [
+     "sometimes",
+     "array:read,starred"
+    ]
+   },
+   "data": {
+    "filter": {
+     "read": "1",
+     "other": "0"
+    }
+   }
+  },
+  {
+   "name": "array keys on string",
+   "rules": {
+    "filter": [
+     "sometimes",
+     "array:read"
+    ]
+   },
+   "data": {
+    "filter": "read"
+   }
+  },
+  {
+   "name": "missing present null",
+   "rules": {
+    "input": [
+     "missing"
+    ],
+    "error": [
+     "missing"
+    ]
+   },
+   "data": {
+    "input": null
+   }
+  },
+  {
+   "name": "confirmed ok",
+   "rules": {
+    "password": [
+     "required",
+     "string",
+     "confirmed"
+    ]
+   },
+   "data": {
+    "password": "secret",
+    "password_confirmation": "secret"
+   }
+  },
+  {
+   "name": "confirmed mismatch",
+   "rules": {
+    "password": [
+     "required",
+     "string",
+     "confirmed"
+    ]
+   },
+   "data": {
+    "password": "secret",
+    "password_confirmation": "other"
+   }
+  },
+  {
+   "name": "confirmed absent",
+   "rules": {
+    "password": [
+     "required",
+     "string",
+     "confirmed"
+    ]
+   },
+   "data": {
+    "password": "secret"
+   }
+  },
+  {
+   "name": "different same",
+   "rules": {
+    "current_password": [
+     "required"
+    ],
+    "password": [
+     "required",
+     "different:current_password"
+    ]
+   },
+   "data": {
+    "current_password": "a",
+    "password": "a"
+   }
+  },
+  {
+   "name": "different ok",
+   "rules": {
+    "current_password": [
+     "required"
+    ],
+    "password": [
+     "required",
+     "different:current_password"
+    ]
+   },
+   "data": {
+    "current_password": "a",
+    "password": "b"
+   }
+  },
+  {
+   "name": "after_or_equal ok",
+   "rules": {
+    "filter.created_from": [
+     "sometimes",
+     "date_format:Y-m-d"
+    ],
+    "filter.created_to": [
+     "sometimes",
+     "date_format:Y-m-d",
+     "after_or_equal:filter.created_from"
+    ]
+   },
+   "data": {
+    "filter": {
+     "created_from": "2026-01-02",
+     "created_to": "2026-01-02"
+    }
+   }
+  },
+  {
+   "name": "after_or_equal before",
+   "rules": {
+    "filter.created_from": [
+     "sometimes",
+     "date_format:Y-m-d"
+    ],
+    "filter.created_to": [
+     "sometimes",
+     "date_format:Y-m-d",
+     "after_or_equal:filter.created_from"
+    ]
+   },
+   "data": {
+    "filter": {
+     "created_from": "2026-01-02",
+     "created_to": "2026-01-01"
+    }
+   }
+  },
+  {
+   "name": "after_or_equal other missing",
+   "rules": {
+    "filter.created_from": [
+     "sometimes",
+     "date_format:Y-m-d"
+    ],
+    "filter.created_to": [
+     "sometimes",
+     "date_format:Y-m-d",
+     "after_or_equal:filter.created_from"
+    ]
+   },
+   "data": {
+    "filter": {
+     "created_to": "2026-01-01"
+    }
+   }
+  },
+  {
+   "name": "after_or_equal other invalid",
+   "rules": {
+    "filter.created_from": [
+     "sometimes",
+     "date_format:Y-m-d"
+    ],
+    "filter.created_to": [
+     "sometimes",
+     "date_format:Y-m-d",
+     "after_or_equal:filter.created_from"
+    ]
+   },
+   "data": {
+    "filter": {
+     "created_from": "nope",
+     "created_to": "2026-01-01"
+    }
+   }
+  },
+  {
+   "name": "between decimal message",
+   "rules": {
+    "spam_score": [
+     "sometimes",
+     "required",
+     "numeric",
+     "between:0,9.99"
+    ]
+   },
+   "data": {
+    "spam_score": "12"
+   }
+  },
+  {
+   "name": "between string message",
+   "rules": {
+    "name": [
+     "string",
+     "between:2,4"
+    ]
+   },
+   "data": {
+    "name": "abcdef"
+   }
+  },
+  {
+   "name": "between array message",
+   "rules": {
+    "ids": [
+     "array",
+     "between:2,4"
+    ]
+   },
+   "data": {
+    "ids": [
+     1
+    ]
+   }
+  },
+  {
+   "name": "per_page",
+   "rules": {
+    "per_page": [
+     "sometimes",
+     "integer",
+     "between:1,100"
+    ]
+   },
+   "data": {
+    "per_page": "0"
+   }
+  },
+  {
+   "name": "per_page not integer",
+   "rules": {
+    "per_page": [
+     "sometimes",
+     "integer",
+     "between:1,100"
+    ]
+   },
+   "data": {
+    "per_page": "abc"
+   }
+  },
+  {
+   "name": "regex with pipe and comma",
+   "rules": {
+    "value": [
+     "required",
+     "string",
+     "regex:/^\\+[1-9]\\d{1,14}$/"
+    ]
+   },
+   "data": {
+    "value": "+44 20"
+   }
+  },
+  {
+   "name": "in with quoted csv",
+   "rules": {
+    "v": [
+     "in:\"a,b\",c"
+    ]
+   },
+   "data": {
+    "v": "a,b"
+   }
+  },
+  {
+   "name": "in rule-in style list",
+   "rules": {
+    "action": [
+     "required",
+     "string",
+     "in:read,unread,star"
+    ]
+   },
+   "data": {
+    "action": "delete"
+   }
+  },
+  {
+   "name": "string split rules from schema",
+   "rules": {
+    "f": [
+     "in:a",
+     "b"
+    ]
+   },
+   "data": {
+    "f": "b"
+   }
+  },
+  {
+   "name": "integer-like field names",
+   "rules": {
+    "1": [
+     "required"
+    ],
+    "a": [
+     "required"
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "display names",
+   "rules": {
+    "first_name": [
+     "required"
+    ],
+    "firstName": [
+     "required"
+    ],
+    "settings.honeypot_name": [
+     "required"
+    ],
+    "01K6B6XZ00000000000000000A": [
+     "required"
+    ],
+    "01k6b6xz00000000000000000a": [
+     "required"
+    ],
+    "Email Address": [
+     "required"
+    ],
+    "user-name": [
+     "required"
+    ],
+    "URLField": [
+     "required"
+    ],
+    "a.b_c": [
+     "required"
+    ]
+   },
+   "data": {}
+  },
+  {
+   "name": "wildcard display names",
+   "rules": {
+    "schema.*.order": [
+     "required"
+    ],
+    "tags.*": [
+     "required"
+    ]
+   },
+   "data": {
+    "schema": [
+     {}
+    ],
+    "tags": [
+     null
+    ]
+   }
+  },
+  {
+   "name": "ordinal placeholders untouched",
+   "rules": {
+    "items.*": [
+     "integer"
+    ]
+   },
+   "data": {
+    "items": [
+     "a",
+     "b"
+    ]
+   }
+  },
+  {
+   "name": "list with gaps",
+   "rules": {
+    "v": [
+     "list"
+    ]
+   },
+   "data": {
+    "v": {
+     "1": "a",
+     "2": "b"
+    }
+   }
+  },
+  {
+   "name": "validated nested list ordering",
+   "rules": {
+    "schema": [
+     "nullable",
+     "list"
+    ],
+    "schema.*.order": [
+     "required",
+     "integer"
+    ],
+    "schema.*.id": [
+     "required"
+    ]
+   },
+   "data": {
+    "schema": [
+     {
+      "id": "a",
+      "order": 1,
+      "x": 1
+     },
+     {
+      "order": 2,
+      "id": "b"
+     }
+    ]
+   }
+  },
+  {
+   "name": "required whitespace string",
+   "rules": {
+    "name": [
+     "required"
+    ]
+   },
+   "data": {
+    "name": "   "
+   }
+  },
+  {
+   "name": "required empty array",
+   "rules": {
+    "tags": [
+     "required"
+    ]
+   },
+   "data": {
+    "tags": []
+   }
+  },
+  {
+   "name": "required empty object",
+   "rules": {
+    "tags": [
+     "required"
+    ]
+   },
+   "data": {
+    "tags": {}
+   }
+  },
+  {
+   "name": "string field whitespace only, not required",
+   "rules": {
+    "name": [
+     "string",
+     "min:3"
+    ]
+   },
+   "data": {
+    "name": "  "
+   }
+  }
+ ],
+ "trim": [
+  "  x  ",
+  "\tx\n",
+  " x ",
+  "​x​",
+  "　x",
+  " x",
+  "x",
+  "x­",
+  "﻿x",
+  "᠎x",
+  " x",
+  " x",
+  "\u0000x",
+  "\u000bx",
+  "\fx",
+  "a b",
+  " ",
+  "  ",
+  "x⠀",
+  "𝅙x"
+ ],
+ "queries": [
+  "a=1&b=2",
+  "filter[read]=1&filter[starred]=0",
+  "a[]=x&a[]=y",
+  "a[1]=x&a[2]=y",
+  "a[2]=y&a[1]=x",
+  "first name=Ann&user.email=x",
+  "a.b[c.d]=1",
+  "a[b=1",
+  "a.b[c=1",
+  "a[b][c]=1",
+  "a[b]c[d]=1",
+  "%20lead=1",
+  "  sp ace=1",
+  "a=1&a=2",
+  "a=1&a[]=2",
+  "a[]=1&a=2",
+  "a+b=1",
+  "a%5Bb%5D=1",
+  "x",
+  "x=",
+  "=1",
+  "a=%E2%82%AC",
+  "a=1&&b=2",
+  "a[]=&a[]=",
+  "a[0]=x&a[]=y",
+  "a[x]=1&a[]=2",
+  "a[ b ]=1",
+  "a[-1]=x&a[]=y",
+  "a[01]=x&a[1]=y",
+  "tags[]=a&tags[]=b",
+  "a=b=c",
+  "a=%ZZ",
+  "a=+x+",
+  "a[][]=1&a[][]=2",
+  "a[b][]=1&a[b][]=2",
+  "[x]=1",
+  "a]=1",
+  "a[b]]=1",
+  "a[[b]]=1"
+ ]
+}

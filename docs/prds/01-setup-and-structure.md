@@ -10,7 +10,7 @@ cd form-handler-headless-nest
 npm i @nestjs/typeorm@^11 typeorm@^0.3 better-sqlite3 pg ulid \
       validator bytes cors multer \
       @nestjs/config@^4 @nestjs/event-emitter@^3 \
-      @nestjs/throttler @nest-lab/throttler-storage-redis ioredis \
+      @nestjs/throttler ioredis busboy \
       @nestjs/jwt@^11 bcrypt \
       @nestjs/bullmq@^11 bullmq \
       nodemailer postmark \
@@ -26,7 +26,7 @@ npm i -D @types/bcrypt @types/nodemailer @types/validator @types/ua-parser-js @t
 - `multer`, which parses multipart bodies, already comes with `@nestjs/platform-express`.
 - `ioredis` is a peer dependency of the throttler storage. BullMQ uses it too. Create one Redis connection provider and share it between the throttler storage and the login limiter. BullMQ needs its own connections, because blocking workers can't share one.
 - Nest compiles to CommonJS, and Jest runs through `ts-jest`. Some current major versions are ESM-only, so check each package loads under Jest before pinning it.
-- **Pinned majors (checked 2026-10-03).** Nest 12 is out, and the `@nestjs/*` packages' latest majors (`config` 12, `event-emitter` 12, `jwt` 12, `typeorm` 12, `bullmq` 12, `swagger` 12) either need Nest 12 or are ESM-only. `@nest-lab/throttler-storage-redis` doesn't support Nest 12 yet, so stay on Nest 11 and pin the versions above. `@faker-js/faker` 10 is ESM-only; use 9. An unpinned `typeorm` resolves to 1.x; the README specifies 0.3. `test/unit/packages.spec.ts` loads every package under Jest.
+- **Pinned majors (checked 2026-10-03).** Nest 12 is out, and the `@nestjs/*` packages' latest majors (`config` 12, `event-emitter` 12, `jwt` 12, `typeorm` 12, `bullmq` 12, `swagger` 12) either need Nest 12 or are ESM-only. Stay on Nest 11 and pin the versions above. (`@nest-lab/throttler-storage-redis`, which also lacked Nest 12 support, was later dropped for our own storage, ch. 3 §3.2.) `@faker-js/faker` 10 is ESM-only; use 9. An unpinned `typeorm` resolves to 1.x; the README specifies 0.3. `test/unit/packages.spec.ts` loads every package under Jest.
 - **bcrypt.** `bcrypt` 6 rejects PHP's `$2y$` prefix (`compareSync` returns `false`). Rewrite `$2y$` to `$2b$` before comparing (ch. 5). The package-load test checks this against a real PHP hash.
 
 ## 1.2 Configuration

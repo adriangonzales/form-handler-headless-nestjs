@@ -18,3 +18,13 @@ export class CsrfTokenMismatchException extends HttpException {
     super('CSRF token mismatch.', 419);
   }
 }
+
+/**
+ * An invalid `_method` override. Symfony throws `SuspiciousOperationException`
+ * (a `RequestExceptionInterface`), which Laravel renders as 400.
+ */
+export class MethodOverrideException extends HttpException {
+  constructor() {
+    super('Bad request.', 400);
+  }
+}

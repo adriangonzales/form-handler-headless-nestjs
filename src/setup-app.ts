@@ -4,6 +4,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cors from 'cors';
 import type { Request } from 'express';
 import { registerBodyParsers } from './common/http/body-parsers';
+import { parsePhpQuery } from './common/http/php-input';
+import { asBag } from './common/http/request-input';
 import { LaravelExceptionFilter } from './common/http/laravel-exception.filter';
 import {
   TRUSTED_PROXIES_SETTING,
@@ -18,8 +20,11 @@ import { httpConfig } from './config';
 export function setupApp(app: NestExpressApplication): void {
   const config = app.get<ConfigType<typeof httpConfig>>(httpConfig.KEY);
 
-  // Express 5 defaults to 'simple', which turns filter[read]=1 into a literal key.
-  app.set('query parser', 'extended');
+  // PHP's parse_str() rules (Express 5's default 'simple' parser would turn
+  // filter[read]=1 into a literal key).
+  app.set('query parser', (query: string | null) =>
+    asBag(parsePhpQuery(query ?? '')),
+  );
   app.set('trust proxy', trustProxySetting(config.trustedProxies));
   app.set(TRUSTED_PROXIES_SETTING, config.trustedProxies);
   app.disable('x-powered-by');

@@ -44,7 +44,7 @@ These are decided. Don't substitute alternatives without agreement.
 | Submission validation   | Laravel validator driven by `forms.schema`                  | Custom rule interpreter (ch. 4)                                                    |
 | API auth                | `tymon/jwt-auth` (HS256), deny list in `denied_tokens` table | `@nestjs/jwt` + a custom guard, deny list in the same table (ch. 5)               |
 | Password hashing        | bcrypt                                                      | `bcrypt` (reads Laravel's `$2y$` hashes, see ch. 5)                                |
-| Rate limiting           | `throttle` middleware, `RateLimiter`                        | `@nestjs/throttler` + `@nest-lab/throttler-storage-redis`, with a `LaravelThrottlerGuard` subclass; a hand-written login limiter on the same Redis client (ch. 3 §3.2, ch. 5 §5.4) |
+| Rate limiting           | `throttle` middleware, `RateLimiter`                        | `@nestjs/throttler` with a Laravel-semantics Redis storage and a `LaravelThrottlerGuard` subclass; a hand-written login limiter on the same Redis client (ch. 3 §3.2, ch. 5 §5.4) |
 | Events                  | Laravel events + auto-discovered listeners                  | `@nestjs/event-emitter`                                                            |
 | Queue                   | Laravel queue (queued listeners and jobs)                   | `@nestjs/bullmq` + `bullmq` on Redis                                               |
 | Scheduler               | `Schedule::command('model:prune')->hourly()`                | A BullMQ job scheduler (`upsertJobScheduler`), so it runs once however many workers there are |
@@ -86,7 +86,7 @@ These look odd, but clients may already depend on them. Keep them, and write a t
 - Entries and notifications of a soft-deleted form return **403**, not 404, from their shallow routes (show, update, delete, restore). The form's own nested routes return 404.
 - Public submissions that trip the honeypot get the normal 201 response.
 - `ip` is every client IP from the request, comma-joined, not a single address. The order is Symfony's: the hop **nearest** the server comes first and the original client comes last (ch. 3 §3.5).
-- Every string in the input is trimmed, and `""` becomes `null`, before validation and storage, except `password`, `password_confirmation` and `current_password`. This comes from Laravel's global `TrimStrings` and `ConvertEmptyStringsToNull` middleware (ch. 3 §3.2).
+- Every string in the input is trimmed, and `""` becomes `null`, before validation and storage, except that `password`, `password_confirmation` and `current_password` aren't trimmed (an empty one still becomes `null`). This comes from Laravel's global `TrimStrings` and `ConvertEmptyStringsToNull` middleware (ch. 3 §3.2).
 - Validation sees the query string merged with the body, with body keys winning. A public submission with `?email=x` and no body field `email` validates and stores `email: "x"`.
 - A malformed JSON body is treated as an empty body, so it gets 422 rather than 400.
 - An authenticated request may carry its JWT in the `Authorization` header, in a `?token=` query parameter, or in a `token` body field (ch. 5 §5.2).

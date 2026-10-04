@@ -56,10 +56,17 @@ Laravel prepares the input before any validator sees it. Port each step into `co
    - **`multipart/form-data`:** parse the text fields with `multer`. Laravel parses multipart natively, and an HTML form with `enctype="multipart/form-data"` must keep working. File fields only matter if production schemas use `file`/`image` rules (ch. 4 §4.3).
    - A body over the size limit → 413 JSON.
 2. **PHP key rewriting** (urlencoded, multipart and query string only, not JSON): PHP replaces `.` and spaces in top-level field names with `_`. `first name=Ann` and `user.email=x` arrive as `first_name` and `user_email`. Copy this.
-3. **Trim and empty to null.** Laravel's global `TrimStrings` and `ConvertEmptyStringsToNull` middleware run on the query string and the body, nested values included. Every string is trimmed (Unicode whitespace too, as Laravel's `Str::trim` does), and `""` then becomes `null`. Skip `password`, `password_confirmation` and `current_password`. This changes stored values: a submitted `" Ann "` is stored as `"Ann"`, and `""` is stored as `null`.
+3. **Trim and empty to null.** Laravel's global `TrimStrings` and `ConvertEmptyStringsToNull` middleware run on the query string and the body, nested values included. Every string is trimmed (Unicode whitespace too, as Laravel's `Str::trim` does), and `""` then becomes `null`. `TrimStrings` skips the top-level `password`, `password_confirmation` and `current_password` keys, but `ConvertEmptyStringsToNull` has no exceptions, so an empty password still becomes `null` (checked against the source, 2026-10-04). This changes stored values: a submitted `" Ann "` is stored as `"Ann"`, and `""` is stored as `null`.
 4. **Merge.** The validator input is `{ ...query, ...body }` at the top level, so a body key wins over a query key. This is Laravel's `$request->all()`, and every Form Request validates it. It applies to every endpoint, not only the export and honeypot cases called out below. For example, a public submission's `?email=x` validates and is stored when the body has no `email`.
 
 Validated values are copied from this prepared input, never from `req.body`.
+
+Details confirmed against PHP and Symfony (2026-10-04, `common/http/php-input.ts`, `body-parsers.ts`):
+
+- Query strings, urlencoded bodies and multipart fields are parsed with a port of PHP's `php_register_variable`: `a[1]=x` stays an assoc key (no compaction into a list), an unmatched `[` becomes `_`, and text after `]` is ignored. `test/fixtures/validation/corpus.json` holds PHP's `parse_str()` results.
+- Form bodies are parsed for POST, PUT, PATCH and DELETE (PHP's `$_POST` plus Symfony's `request_parse_body()`), never for GET. For GET/HEAD, the input source is the query string; a JSON body counts for any method.
+- JSON bodies take the shape `json_decode($json, true)` gives: `{}` and `{"0":…,"1":…}` become lists.
+- **Method override:** Laravel's kernel enables Symfony's `_method` override, so a POST becomes PUT/PATCH/DELETE through `X-HTTP-Method-Override`, a body `_method` or a query `_method`. GET, HEAD, CONNECT and TRACE are ignored. A value that isn't A–Z gets 400 `{"message":"Bad request."}`.
 
 ### JSON encoding
 
@@ -124,7 +131,7 @@ Rules to implement in `common/http/paginate.ts`:
   | `GET /entry-exports`             | yes                 | all kept                        |
   | `GET /forms/:form/notifications` | no (always 15)      | dropped                         |
 
-- `meta.links` is a window of page numbers. With more than about 10 pages, Laravel inserts `{ "url": null, "label": "...", "page": null, "active": false }` separators: an `onEachSide` of 3, plus the first two and last two pages. Copy the algorithm from `Illuminate\Pagination\UrlWindow` exactly.
+- `meta.links` is a window of page numbers. With more than about 10 pages, Laravel inserts `{ "url": null, "label": "...", "active": false }` separators (no `page` key, unlike the page links): an `onEachSide` of 3, plus the first two and last two pages. Copy the algorithm from `Illuminate\Pagination\UrlWindow` exactly.
 
 List items **inside** `data` use the same resource shape as the single resource, minus the wrapper.
 
@@ -139,13 +146,13 @@ List items **inside** `data` use the same resource shape as the single resource,
 | Bad or expired download signature                        | 403    | `{"message":"Invalid signature."}`                                       |
 | Unknown or soft-deleted ID, invalid ULID, unknown route  | 404    | `{"message":"..."}` (text not contractual)                               |
 | Wrong method on a known path                             | 405    | `{"message":"The POST method is not supported for route api/v1/forms/x. Supported methods: GET, HEAD, PUT, PATCH, DELETE."}` (text not contractual) plus an `Allow` header. Express returns 404 by default, so add a fallback that checks the path against the route table |
-| Body too large (over `post_max_size`, 2 MB in production) | 413   | Laravel's `ValidatePostSize` throws `PostTooLargeException` with an empty message. Capture the exact body from the reference app |
+| Body too large (over `post_max_size`, 2 MB in production) | 413   | `{"message":"The POST data is too large."}` (captured from the reference app). Checked before routing, so it applies to every path. Nest drains bodies up to 16 MB before answering; otherwise Node closes the socket and clients see EPIPE mid-upload |
 | Force-deleting an entry that isn't deleted               | 409    | `{"message":"Only deleted entries can be permanently deleted."}`         |
 | Downloading an export that isn't completed               | 409    | `{"message":"This export is not ready."}`                                |
 | Downloading an expired export                            | 410    | `{"message":"This export has expired."}`                                 |
 | Validation failure                                       | 422    | see below                                                                |
 | Throttled                                                | 429    | `{"message":"Too Many Attempts."}` plus `Retry-After` (seconds until the window ends). Laravel's `X-RateLimit-*` headers aren't sent (see _Rate limiting_ below) |
-| Unhandled                                                | 500    | `{"message":"Server Error."}` (no stack traces outside dev)              |
+| Unhandled                                                | 500    | `{"message":"Server Error"}`, no trailing period (`convertExceptionToArray()`); no stack traces |
 
 Validation error body:
 
@@ -169,7 +176,7 @@ Every endpoint validates with the ch. 4 rule engine. Each Form Request becomes a
 
 ### Rate limiting
 
-There are three HTTP rate limits, built on `@nestjs/throttler` with `@nest-lab/throttler-storage-redis` as the store. The login limit is separate (ch. 5 §5.4).
+There are three HTTP rate limits, built on `@nestjs/throttler` with a small Redis storage of our own (`common/rate-limit/laravel-rate-limiter.storage.ts`, see _Storage_ below). The login limit is separate (ch. 5 §5.4).
 
 | Throttler name     | Limit             | Counted by                          | Routes                                  |
 | ------------------ | ----------------- | ----------------------------------- | --------------------------------------- |
@@ -187,13 +194,13 @@ Each throttler has its own counter, so submissions and password reset don't affe
 
 Module settings:
 
-- **`blockDuration: 1`** (ms) on every throttler. By default the package blocks for a whole TTL, starting at the first request over the limit, so a client that goes over at 0:59 would be locked out until about 1:59. Laravel blocks only until the current window ends. With a 1 ms block, every request over the limit is blocked again until the window's counter expires, which is Laravel's fixed window. A test must pin this behaviour, because it relies on how the Redis storage's Lua script works.
+- **No `blockDuration` tuning.** The storage implements Laravel's fixed window itself, so the package's block setting is unused (see _Storage_).
 - **`setHeaders: false`**. The package's header names get a suffix for every named throttler (`X-RateLimit-Limit-submissions-form`), and its `X-RateLimit-Reset` is a number of seconds, not Laravel's Unix timestamp. Neither client reads these headers. The Next and Nuxt apps use only the status code and pass on `Retry-After` (checked 2026-10-03). So the port sends no `X-RateLimit-*` headers at all, rather than misleading ones. This is a **documented difference**, and the contract suite ignores these headers.
 - Register the throttlers in the order above. The guard checks them in that order, and each check counts the request before deciding, so a request that `submissions-form` rejects still counts toward `submissions-ip`. Laravel's two middleware behave the same way.
 
 Apply the guard only to the three routes, through a `@RateLimited(...names)` decorator. It adds `@UseGuards(LaravelThrottlerGuard)` and `@SkipThrottle` for the throttlers the route doesn't use. On public submissions it must run **before** the form is looked up, so that unknown IDs are counted and 429 comes before 404.
 
-Storage: `new ThrottlerStorageRedisService(redis)`, using the shared `ioredis` connection (ch. 1 §1.1). Don't use the package's in-memory storage in tests either. It counts in a sliding window, and with `blockDuration: 1` it resets the count when the block ends, so it wouldn't test production behaviour. Throttle e2e tests run against Redis (ch. 7 §7.1).
+Storage: `LaravelRateLimiterStorage`, on the shared `ioredis` connection (ch. 1 §1.1). Its Lua script ports Laravel's `RateLimiter` + `ThrottleRequests`: `tooManyAttempts()` runs **before** the hit, so rejected requests aren't counted and never extend the lockout, the window is fixed from the first hit, and `Retry-After` comes from the window's `:timer` key. **Changed 2026-10-04:** the guide proposed `@nest-lab/throttler-storage-redis` with `blockDuration: 1`. Its script resets the counter when a request arrives while the 1 ms block key reports a PTTL of 0. Reproduced against Redis: a 6/min limit let 16,236 of 124,400 burst requests through in 3 s. A regression test pins the new storage at exactly 6. Throttle e2e tests run against a real Redis (DB 15, flushed between tests; ch. 7 §7.1).
 
 ## 3.3 Authorization
 
@@ -459,7 +466,7 @@ There's no `deleted_at`. `parameters` is always an object. `download_url` is `nu
 
 1. `expires` = now + `EXPORT_DOWNLOAD_URL_TTL` minutes, as Unix seconds.
 2. `relative` = `/api/v1/entry-exports/{id}/download?expires={expires}`.
-3. `signature` = hex HMAC-SHA256 of `relative`, keyed with `APP_KEY` (decode a `base64:` prefix first).
+3. `signature` = hex HMAC-SHA256 of `relative`, keyed with `APP_KEY` **exactly as configured, `base64:` prefix included**. Laravel's URL generator passes the raw config string to `hash_hmac`; decoding it gives signatures Laravel rejects (checked against PHP output, 2026-10-04).
 4. Return the request's scheme + host + `relative` + `&signature=…`.
 
 Because only the path and query are signed, the link still validates behind a proxy with a different host or scheme. Don't try to validate links issued by Laravel: they expire within minutes of cut-over.

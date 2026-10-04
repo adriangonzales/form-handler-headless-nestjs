@@ -14,5 +14,7 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "passWithNoTests": true,
-  "globalSetup": "<rootDir>/test/global-setup.ts"
+  "globalSetup": "<rootDir>/test/global-setup.ts",
+  "maxWorkers": 1,
+  "testTimeout": 30000
 }

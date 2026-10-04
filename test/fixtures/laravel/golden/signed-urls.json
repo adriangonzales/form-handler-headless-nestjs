@@ -1,0 +1,37 @@
+[
+    {
+        "key": "base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "now": 1767323045,
+        "export": "01k6b6xz0000000000000000aa",
+        "minutes": 5,
+        "relative": "/api/v1/entry-exports/01k6b6xz0000000000000000aa/download?expires=1767323345&signature=e16fb5c4b4e9059148cc8e70c370129fe82b833bd53d7c2fd76cb2b81001ec21"
+    },
+    {
+        "key": "base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "now": 1767323045,
+        "export": "01k6b6xz0000000000000000aa",
+        "minutes": 60,
+        "relative": "/api/v1/entry-exports/01k6b6xz0000000000000000aa/download?expires=1767326645&signature=17d7763fb60da560171ad387cf91ba017128c28bbb4d6199d6ac2bdc0ebd06c0"
+    },
+    {
+        "key": "base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "now": 1767323045,
+        "export": "01k6b6xz0000000000000000ab",
+        "minutes": 5,
+        "relative": "/api/v1/entry-exports/01k6b6xz0000000000000000ab/download?expires=1767323345&signature=0635314b78a2b6bdfa9daed4ed3f4b17bed4d8fa5e8e1f392754007608774d30"
+    },
+    {
+        "key": "base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "now": 1767323045,
+        "export": "01k6b6xz0000000000000000ab",
+        "minutes": 60,
+        "relative": "/api/v1/entry-exports/01k6b6xz0000000000000000ab/download?expires=1767326645&signature=ff61bfa76bbcf234dad46186ac111392d9291d583fe03114aa8b6b563ecfb5a4"
+    },
+    {
+        "key": "plain-text-key-without-prefix",
+        "now": 1767323045,
+        "export": "01k6b6xz0000000000000000aa",
+        "minutes": 5,
+        "relative": "/api/v1/entry-exports/01k6b6xz0000000000000000aa/download?expires=1767323345&signature=0edfad9978d06d0dae72a9e7046f736b7fee9d43794ce26f2b8dc307ea83932e"
+    }
+]

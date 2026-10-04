@@ -14,7 +14,7 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 ## Decisions
 
-- [x] **Rate limiter design** (2026-10-03). `@nestjs/throttler` + `@nest-lab/throttler-storage-redis` with a `LaravelThrottlerGuard` subclass for the three HTTP limits (ch. 3 §3.2). The login limiter is hand-written on the same `ioredis` connection (ch. 5 §5.4). No `X-RateLimit-*` headers are sent: neither the Next nor the Nuxt client reads them, and both use only the status code and `Retry-After`.
+- [x] **Rate limiter design** (2026-10-03, storage changed 2026-10-04). `@nestjs/throttler` with a `LaravelThrottlerGuard` subclass for the three HTTP limits (ch. 3 §3.2). The storage is our own Lua port of Laravel's `RateLimiter`: `@nest-lab/throttler-storage-redis` with `blockDuration: 1` let 16,236 of 124,400 burst requests through a 6/min limit. The login limiter is hand-written on the same `ioredis` connection (ch. 5 §5.4). No `X-RateLimit-*` headers are sent: neither the Next nor the Nuxt client reads them, and both use only the status code and `Retry-After`.
 - [x] **F9** (2026-10-03). Public submissions and password reset get separate rate-limit counters, instead of Laravel's shared `sha1('|' . ip)` key.
 
 ## Phase 0: Test harness (built alongside phases 1–3)
@@ -69,21 +69,21 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 ## Phase 3: Shared HTTP plumbing, validation engine, contract suite (ch. 3 §3.2, ch. 4 engine, ch. 7 §7.4)
 
-- [ ] Script for reproducible Laravel fixture capture (fixed clock, sync queue, seeded through the API) → `test/fixtures/laravel/`
-- [ ] Capture golden fixtures: pagination envelopes for 0, 1, 16 and 200 records, error bodies, an `X-Forwarded-For` chain
-- [ ] `request-input.ts`: trim, `""` → `null` (password fields skipped), query + body merge, PHP key rewriting
-- [ ] Client IP list in Symfony order; `ip()` = first entry
-- [ ] Validation engine (`common/validation`): evaluation model, wildcards, dotted names, async DB rules, Laravel message templates, "(and N more error[s])"
-- [ ] PHP-generated rule corpus (`test/fixtures/`) and table-driven tests
-- [ ] `@Validated(rules)` parameter decorator
-- [ ] `LaravelExceptionFilter`: 401/403/404/405/409/410/413/422/429/500 bodies and headers
-- [ ] `ThrottlerModule` with the Redis storage; `LaravelThrottlerGuard` (`getTracker`, `generateKey`, `throwThrottlingException`), `blockDuration: 1`, `setHeaders: false`; `@RateLimited()` decorator (ch. 3 §3.2)
-- [ ] `paginate.ts`: envelope, exact port of `UrlWindow`, query encoded like PHP RFC3986 with `page` last, `keepQuery` option, invalid `page` → 1
-- [ ] `timestamps.ts`: ISO 8601 with six fractional digits
-- [ ] `signed-url.ts`: HMAC-SHA256 over the relative URL, `APP_KEY` with `base64:` decoding, constant-time compare
-- [ ] Laravel `boolean` coercion helper (`true false 1 0 "1" "0"`)
-- [ ] Contract suite skeleton (`test/contract`, HTTP only, JSON compared as parsed values with key order) green against Laravel
-- [ ] Unit tests against the golden fixtures
+- [x] Script for reproducible Laravel fixture capture (fixed clock, sync queue, seeded through the API) → `test/fixtures/laravel/` (`npm run fixtures:capture`; deterministic, tokens redacted)
+- [x] Capture golden fixtures: pagination envelopes for 0, 1, 16 and 200 records (75 cases from Laravel's own paginator), error bodies, an `X-Forwarded-For` chain (`"2.2.2.2,1.1.1.1"`), signed URLs
+- [x] `request-input.ts`: trim (`Str::trim`), `""` → `null` (passwords aren't trimmed but still become null, per Laravel's source), query + body merge, PHP key rewriting (`php-input.ts`, a port of `php_register_variable`), `_method` override
+- [x] Client IP list in Symfony order; `ip()` = first entry (phase 1; confirmed by the captured fixture)
+- [x] Validation engine (`common/validation`): evaluation model, wildcards, dotted names, async rule objects (DB rules), Laravel message templates (exported from PHP), "(and N more error[s])"
+- [x] PHP-generated rule corpus (`test/fixtures/validation/`) and table-driven tests: 5,148 single-rule cases + 54 scenarios, all matching
+- [x] `@Validated({ rules, prepare?, after? })` parameter decorator
+- [x] `LaravelExceptionFilter`: 401/403/404/405/409/410/413/422/429/500 bodies and headers
+- [x] Throttling with `LaravelThrottlerGuard` (`getTracker`, `generateKey`, `throwThrottlingException`), `setHeaders: false`, `@RateLimited()`; storage replaced by a Laravel-exact Lua port (see Decisions)
+- [x] `paginate.ts`: envelope, exact port of `UrlWindow`, query encoded like PHP RFC3986 with `page` last, `keepQuery` option, invalid `page` → 1
+- [x] `timestamps.ts`: ISO 8601 with six fractional digits
+- [x] `signed-url.ts`: HMAC-SHA256 over the relative URL, `APP_KEY` **raw** (Laravel doesn't decode `base64:` for signing), constant-time compare
+- [x] Laravel `boolean` coercion helper (`true false 1 0 "1" "0"`)
+- [x] Contract suite skeleton (`test/contract`, HTTP only, JSON compared as parsed values with key order) green against Laravel (12/12) and against Nest for the built features (9/9, auth cases skipped until phase 4)
+- [x] Unit tests against the golden fixtures
 
 ## Phase 4: Authentication and accounts (ch. 5)
 
@@ -231,3 +231,4 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - 2026-10-03: No real production data, so the import script, rehearsal, write freeze and queue drain are dropped, and rollback simplified. `TRUSTED_PROXIES=127.0.0.1` decided for Laravel and Nest. Multipart confirmed as a requirement.
 - 2026-10-03: Phase 1 scaffolded. Nest 12 has shipped, and the latest `@nestjs/*` majors need it or are ESM-only (Jest can't load them). `@nest-lab/throttler-storage-redis` doesn't support Nest 12, so we pinned Nest 11 lines: `config@4`, `event-emitter@3`, `jwt@11`, `typeorm@11`, `bullmq@11`, `swagger@11`, plus `typeorm@0.3` (unpinned resolves to 1.x) and `faker@9` (10 is ESM-only). `bcrypt@6` rejects `$2y$` hashes, so phase 4 must rewrite them to `$2b$`; checked against a real PHP hash. Laravel root routes probed: non-GET `/` → 419 CSRF; 404/405 messages copied.
 - 2026-10-03: Phase 2 done, plus the phase 0 `Clock`, `createApp()` and factories. Findings: (1) entity decorators read `DB_TYPE` at import, before `ConfigModule` loads `.env`, so every entrypoint now imports `config/load-env.ts` first. (2) Jest `setupFiles` can't set the process timezone (the sandbox `process.env` is a copy); the Postgres tests had been running in local time. `TZ=UTC` is now set in a Jest `globalSetup`, with a test that checks it. (3) A TypeORM column transformer on a timestamp or JSON-string column makes every `save()` look like a change, which would bump `updated_at`. Truncation moved into `TimestampSubscriber`, and `user_agent_display` is `simple-json` (`text` on Postgres, a deviation from Laravel's `varchar(255)`). (4) PHP's `round()` differs from `Math.round(x*100)/100` (`0.285` → `0.29`), so `phpRound` is ported and tested against PHP output. (5) The TypeORM SQLite driver has no `char` type, and its schema diff reports false rebuilds, so the drift check stays Postgres-only. Factories moved to `src/database/factories/`.
+- 2026-10-04: Phase 3 done. All behaviour is checked against PHP output (messages, timezones, a 5,148-case validation corpus, `parse_str()`, `Str::trim`, 75 paginator envelopes, signed URLs) or the running reference app. Guide corrections: separators in `meta.links` have no `page` key; 413 says "The POST data is too large."; 500 says "Server Error" (no period); signed URLs use the raw `APP_KEY`; empty passwords still become `null`; Laravel's `date` rule rejects relative dates. New parity items: the `_method` override, form bodies parsed only for POST/PUT/PATCH/DELETE, PHP's variable parsing. Bugs found: nest-lab's throttler script reopens the window under bursts (replaced); an early 413 made clients fail with EPIPE (body now drained); Herd's PHP on port 8001 had made a contract run test the wrong server (the runner now refuses busy ports, and Nest uses 8011).

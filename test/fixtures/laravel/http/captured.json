@@ -1,0 +1,477 @@
+[
+  {
+    "name": "root redirect",
+    "request": {
+      "method": "GET",
+      "path": "/"
+    },
+    "response": {
+      "status": 302,
+      "headers": {
+        "content-type": "text/html; charset=utf-8",
+        "location": "http://127.0.0.1:8765/docs/api"
+      },
+      "body": "<non-json body>"
+    }
+  },
+  {
+    "name": "root post (csrf)",
+    "request": {
+      "method": "POST",
+      "path": "/"
+    },
+    "response": {
+      "status": 419,
+      "headers": {
+        "content-type": "application/json"
+      },
+      "body": {
+        "message": "CSRF token mismatch."
+      }
+    }
+  },
+  {
+    "name": "unknown route",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/nope",
+      "headers": {
+        "Accept": "text/html"
+      }
+    },
+    "response": {
+      "status": 404,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The route api/v1/nope could not be found."
+      }
+    }
+  },
+  {
+    "name": "wrong method",
+    "request": {
+      "method": "DELETE",
+      "path": "/api/v1/auth/login"
+    },
+    "response": {
+      "status": 405,
+      "headers": {
+        "content-type": "application/json",
+        "allow": "POST",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The DELETE method is not supported for route api/v1/auth/login. Supported methods: POST."
+      }
+    }
+  },
+  {
+    "name": "wrong method on resource",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/forms/<ulid:1>",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "status": 405,
+      "headers": {
+        "content-type": "application/json",
+        "allow": "GET, HEAD, PUT, PATCH, DELETE",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The POST method is not supported for route api/v1/forms/<ulid:1>. Supported methods: GET, HEAD, PUT, PATCH, DELETE."
+      }
+    }
+  },
+  {
+    "name": "body too large",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    "response": {
+      "status": 413,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The POST data is too large."
+      }
+    }
+  },
+  {
+    "name": "cors preflight",
+    "request": {
+      "method": "OPTIONS",
+      "path": "/api/v1/forms/x/submissions",
+      "headers": {
+        "Origin": "https://customer.example",
+        "Access-Control-Request-Method": "POST"
+      }
+    },
+    "response": {
+      "status": 204,
+      "headers": {
+        "content-type": "text/html; charset=UTF-8",
+        "access-control-allow-origin": "*"
+      },
+      "body": null
+    }
+  },
+  {
+    "name": "unauthenticated",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/forms"
+    },
+    "response": {
+      "status": 401,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "Unauthenticated."
+      }
+    }
+  },
+  {
+    "name": "not the owner",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/forms/<ulid:1>",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "status": 403,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "You do not own this form."
+      }
+    }
+  },
+  {
+    "name": "invalid ulid",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/forms/not-a-ulid",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "status": 404,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "No query results for model [App\\Models\\Form] not-a-ulid"
+      }
+    }
+  },
+  {
+    "name": "unknown ulid",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/forms/01k6b6xz0000000000000000zz",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "status": 404,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "No query results for model [App\\Models\\Form] 01k6b6xz0000000000000000zz"
+      }
+    }
+  },
+  {
+    "name": "uppercase ulid",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/forms/<ULID:1>",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "status": 404,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "No query results for model [App\\Models\\Form] <ULID:1>"
+      }
+    }
+  },
+  {
+    "name": "validation (fixed endpoint)",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/forms",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      },
+      "body": {
+        "schema": [
+          {
+            "id": "nope",
+            "order": "x"
+          }
+        ],
+        "settings": {
+          "bogus": 1
+        }
+      }
+    },
+    "response": {
+      "status": 422,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The name field is required. (and 3 more errors)",
+        "errors": {
+          "name": [
+            "The name field is required."
+          ],
+          "settings": [
+            "The settings field must be an array."
+          ],
+          "schema.0.id": [
+            "The schema.0.id field must be a valid ULID."
+          ],
+          "schema.0.order": [
+            "The schema.0.order field must be an integer."
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "malformed json",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    },
+    "response": {
+      "status": 422,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The email field is required. (and 1 more error)",
+        "errors": {
+          "email": [
+            "The email field is required."
+          ],
+          "password": [
+            "The password field is required."
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "submission validation (empty body)",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/forms/<ulid:1>/submissions",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "body": {}
+    },
+    "response": {
+      "status": 422,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "The 01 k6 b6 x z00000000000000000 a field is required. (and 2 more errors)",
+        "errors": {
+          "01K6B6XZ00000000000000000A": [
+            "The 01 k6 b6 x z00000000000000000 a field is required."
+          ],
+          "01K6B6XZ00000000000000000B": [
+            "The 01 k6 b6 x z00000000000000000 b field is required."
+          ],
+          "01K6B6XZ00000000000000000C": [
+            "The 01 k6 b6 x z00000000000000000 c field is required."
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "submission through a proxy chain",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/forms/<ulid:1>/submissions",
+      "headers": {
+        "X-Forwarded-For": "1.1.1.1, 2.2.2.2",
+        "Accept": "application/json"
+      },
+      "body": {
+        "01K6B6XZ00000000000000000A": " Ann ",
+        "01K6B6XZ00000000000000000B": "ann@example.com",
+        "01K6B6XZ00000000000000000C": "Hi",
+        "extra": "dropped"
+      }
+    },
+    "response": {
+      "status": 201,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "data": {
+          "redirect": null,
+          "message": null
+        }
+      }
+    }
+  },
+  {
+    "name": "entries after the proxied submission",
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/forms/<ulid:1>/entries",
+      "headers": {
+        "Authorization": "Bearer <token>",
+        "Accept": "application/json"
+      }
+    },
+    "response": {
+      "status": 200,
+      "headers": {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "data": [
+          {
+            "id": "<ulid:2>",
+            "form_id": "<ulid:1>",
+            "input": {
+              "01K6B6XZ00000000000000000A": "Ann",
+              "01K6B6XZ00000000000000000B": "ann@example.com",
+              "01K6B6XZ00000000000000000C": "Hi"
+            },
+            "ip": "2.2.2.2,1.1.1.1",
+            "ip_location_display": null,
+            "referer": null,
+            "user_agent": "node",
+            "user_agent_display": {
+              "platform": null,
+              "browser": "node",
+              "browser_version": null
+            },
+            "spam": false,
+            "spam_score": 0,
+            "spam_reason": null,
+            "spam_checked_at": null,
+            "starred": false,
+            "read_at": null,
+            "created_at": "2026-01-02T03:04:25.000000Z",
+            "updated_at": "2026-01-02T03:04:25.000000Z",
+            "deleted_at": null
+          }
+        ],
+        "links": {
+          "first": "http://127.0.0.1:8765/api/v1/forms/<ulid:1>/entries?page=1",
+          "last": "http://127.0.0.1:8765/api/v1/forms/<ulid:1>/entries?page=1",
+          "prev": null,
+          "next": null
+        },
+        "meta": {
+          "current_page": 1,
+          "from": 1,
+          "last_page": 1,
+          "links": [
+            {
+              "url": null,
+              "label": "&laquo; Previous",
+              "page": null,
+              "active": false
+            },
+            {
+              "url": "http://127.0.0.1:8765/api/v1/forms/<ulid:1>/entries?page=1",
+              "label": "1",
+              "page": 1,
+              "active": true
+            },
+            {
+              "url": null,
+              "label": "Next &raquo;",
+              "page": null,
+              "active": false
+            }
+          ],
+          "path": "http://127.0.0.1:8765/api/v1/forms/<ulid:1>/entries",
+          "per_page": 15,
+          "to": 1,
+          "total": 1
+        }
+      }
+    }
+  },
+  {
+    "name": "throttled",
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/auth/forgot-password",
+      "headers": {
+        "Accept": "application/json"
+      },
+      "body": {
+        "email": "nobody@example.com"
+      }
+    },
+    "response": {
+      "status": 429,
+      "headers": {
+        "content-type": "application/json",
+        "retry-after": "51",
+        "access-control-allow-origin": "*"
+      },
+      "body": {
+        "message": "Too Many Attempts."
+      }
+    }
+  }
+]

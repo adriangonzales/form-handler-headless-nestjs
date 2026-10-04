@@ -57,7 +57,7 @@ jobs:
     env:
       DB_TYPE: ${{ matrix.db }}
       DB_URL: ${{ matrix.db == 'postgres' && 'postgres://forms:forms@127.0.0.1:5432/forms' || ':memory:' }}
-      REDIS_URL: redis://127.0.0.1:6379
+      REDIS_URL: redis://127.0.0.1:6379/15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,6 +69,31 @@ jobs:
       - run: npm ci
       # Postgres suites share one database (createApp drops the schema), so run them serially.
       - run: npm run test:e2e -- ${{ matrix.db == 'postgres' && '--runInBand' || '' }}
+
+  contract:
+    name: Contract suite (Nest)
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      REDIS_URL: redis://127.0.0.1:6379/14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # The Laravel side (npm run contract:laravel) needs PHP and the reference app; run it locally.
+      - run: npm run contract:nest
 
   migrations:
     name: Migration drift check (Postgres)

@@ -7,6 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import {
+  LaravelHttpException,
+  ValidationException,
+} from './laravel-exceptions';
 
 /** Laravel's `Router::$verbs`, which also orders the `Allow` header. */
 const VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
@@ -20,8 +24,12 @@ interface RouterLayer {
  * Renders every error as Laravel's JSON shape, `{ "message": ... }`, whatever
  * the request's `Accept` header (ch. 1 §1.4, ch. 3 §3.2).
  *
- * Phase 1 covers routing (404, 405), request preparation (413) and the
- * fallback 500. Validation, auth and throttling bodies arrive in phase 3.
+ * - `ValidationException`: 422 `{message, errors}`.
+ * - `LaravelHttpException`s: their status, message and headers (401, 403,
+ *   409, 410, 429 with `Retry-After`, …).
+ * - Routing misses: 404, or 405 with `Allow`.
+ * - Other `HttpException`s: their status and message.
+ * - Anything else: 500 `{"message":"Server Error"}`, logged.
  */
 @Catch()
 export class LaravelExceptionFilter implements ExceptionFilter {
@@ -37,6 +45,17 @@ export class LaravelExceptionFilter implements ExceptionFilter {
     // from inside a handler has `req.route` set.
     if (exception instanceof NotFoundException && req.route === undefined) {
       return this.renderRoutingMiss(req, res);
+    }
+
+    if (exception instanceof ValidationException) {
+      res.status(422).json(exception.body());
+      return;
+    }
+
+    if (exception instanceof LaravelHttpException) {
+      res.set(exception.headers);
+      res.status(exception.getStatus()).json({ message: exception.message });
+      return;
     }
 
     if (exception instanceof HttpException) {

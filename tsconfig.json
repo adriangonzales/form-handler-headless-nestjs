@@ -19,7 +19,8 @@
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "strict": true,
-    "noImplicitOverride": true
+    "noImplicitOverride": true,
+    "resolveJsonModule": true
   },
   "exclude": [
     "node_modules",

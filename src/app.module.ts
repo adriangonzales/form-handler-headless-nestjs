@@ -4,6 +4,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RouterModule } from '@nestjs/core';
 import { ApiV1Module } from './api/api-v1.module';
 import { ClockModule } from './common/clock/clock.module';
+import { RateLimitModule } from './common/rate-limit/rate-limit.module';
 import { RedisModule } from './common/redis/redis.module';
 import { configLoaders, validateEnv } from './config';
 import { DatabaseModule } from './database/database.module';
@@ -28,6 +29,7 @@ export const coreImports = [
 @Module({
   imports: [
     ...coreImports,
+    RateLimitModule,
     ApiV1Module,
     RouterModule.register([{ path: 'api/v1', module: ApiV1Module }]),
   ],

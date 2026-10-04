@@ -5,8 +5,11 @@ export interface AppConfig {
   url: string;
   /** `production` turns on the strict password policy (ch. 5 §5.9). */
   env: string;
-  /** Raw key bytes; a `base64:` prefix is decoded as Laravel does. */
-  key: Buffer;
+  /**
+   * `APP_KEY` exactly as configured. Laravel signs URLs with the raw string,
+   * `base64:` prefix included (it doesn't decode it for HMAC).
+   */
+  key: string;
   passwordResetUrl: string;
   /** Minutes a signed export download URL stays valid. */
   exportDownloadUrlTtl: number;
@@ -14,12 +17,7 @@ export interface AppConfig {
 
 export function readAppConfig(r: EnvReader): AppConfig {
   const url = r.url('APP_URL').replace(/\/+$/, '');
-  const rawKey = r.required('APP_KEY');
-  const key = rawKey.startsWith('base64:')
-    ? Buffer.from(rawKey.slice('base64:'.length), 'base64')
-    : Buffer.from(rawKey, 'utf8');
-  if (rawKey !== '' && key.length === 0)
-    r.fail('APP_KEY decodes to an empty key');
+  const key = r.required('APP_KEY');
 
   // The pg driver reads `timestamp without time zone` in the process's local
   // timezone (ch. 2 §2.1).
