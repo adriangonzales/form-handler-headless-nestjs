@@ -24,6 +24,13 @@ const USER: ServerUser = {
   email: 'contract@example.com',
   password: 'contract-password-1',
 };
+/** Changes its password and deletes itself in the account cases. */
+const ACCOUNT_USER: ServerUser = {
+  name: 'Account User',
+  email: 'contract-account@example.com',
+  password: 'account-password-1',
+};
+const USERS = [USER, ACCOUNT_USER];
 
 async function startNest(port: number): Promise<RunningServer> {
   const tmp = mkdtempSync(join(tmpdir(), 'nest-contract-'));
@@ -54,7 +61,18 @@ async function startNest(port: number): Promise<RunningServer> {
     ],
     { cwd: ROOT, env, stdio: 'pipe' },
   );
-  // user:create lands in phase 4; until then the Nest run has no contract user.
+  for (const user of USERS) {
+    execFileSync(
+      'node',
+      [
+        'dist/users/create-user.js',
+        `--name=${user.name}`,
+        `--email=${user.email}`,
+        `--password=${user.password}`,
+      ],
+      { cwd: ROOT, env, stdio: 'pipe' },
+    );
+  }
   const server = spawn('node', ['dist/main.js'], {
     cwd: ROOT,
     env,
@@ -99,7 +117,7 @@ async function main(): Promise<void> {
   await assertPortFree(port);
   const server =
     target === 'laravel'
-      ? await startLaravel({ port, users: [USER] })
+      ? await startLaravel({ port, users: USERS })
       : await startNest(port);
   try {
     const result = spawnSync(
@@ -114,6 +132,8 @@ async function main(): Promise<void> {
           CONTRACT_TARGET: target,
           CONTRACT_EMAIL: USER.email,
           CONTRACT_PASSWORD: USER.password,
+          CONTRACT_ACCOUNT_EMAIL: ACCOUNT_USER.email,
+          CONTRACT_ACCOUNT_PASSWORD: ACCOUNT_USER.password,
         },
       },
     );

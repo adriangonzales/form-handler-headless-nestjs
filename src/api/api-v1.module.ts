@@ -1,8 +1,13 @@
 import { Module } from '@nestjs/common';
+import { AccountsModule } from '../accounts/accounts.module';
+import { AuthModule } from '../auth/auth.module';
 
 /**
- * Everything under `/api/v1`, mounted by `RouterModule` in `AppModule`. Feature
- * modules (forms, entries, auth, ...) are imported here as they land.
+ * Feature modules served under `/api/v1`. `RouterModule` prefixes only the
+ * modules it's given, so `AppModule` registers these as `children`.
  */
-@Module({})
+export const API_V1_MODULES = [AuthModule, AccountsModule];
+
+/** Everything under `/api/v1`, mounted by `RouterModule` in `AppModule`. */
+@Module({ imports: API_V1_MODULES })
 export class ApiV1Module {}

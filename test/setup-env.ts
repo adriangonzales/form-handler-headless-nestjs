@@ -13,3 +13,4 @@ process.env.REDIS_URL ??= 'redis://127.0.0.1:6379/15';
 process.env.QUEUE_DRIVER ??= 'sync';
 process.env.MAIL_MAILER ??= 'log';
 process.env.MAIL_FROM_ADDRESS ??= 'hello@example.com';
+process.env.BCRYPT_ROUNDS ??= '4';

@@ -20,10 +20,10 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 ## Phase 0: Test harness (built alongside phases 1–3)
 
 - [x] `Clock` / `FakeClock` with `travel(ms)`. No Jest fake timers (ch. 7 §7.1)
-- [~] `createApp()` (`test/support/create-app.ts`): in-memory SQLite (`synchronize: true`) and `FakeClock` done; fake mail transport, fake `JevClient` and in-memory storage disk to add with their phases
+- [~] `createApp()` (`test/support/create-app.ts`): in-memory SQLite (`synchronize: true`), `FakeClock`, fake mailer, in-memory `local` disk and in-memory login-limiter store done; fake `JevClient` to add with phase 6
 - [x] Postgres variant (`DB_TYPE=postgres`): drops the schema and applies the migrations; run with `--runInBand`
 - [ ] `JobDispatcher` bindings: `SyncJobDispatcher` and `FakeJobDispatcher` (ch. 6 §6.2)
-- [ ] `actingAs(user)`: a stub until phase 4, then the real signer with the right `tv`
+- [x] `t.apiToken(user)` (Pest's `apiToken()`): a real token from `TokenService` with the user's `tv`; requests use `json(http, method, url, body, token)`
 - [x] Factories that persist through repositories and set `id` explicitly (ch. 2 §2.1, §2.5), in `src/database/factories/`
 
 ## Phase 1: Setup and structure (ch. 1)
@@ -87,26 +87,27 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 
 ## Phase 4: Authentication and accounts (ch. 5)
 
-- [ ] Token claims compatible with tymon: `iss sub iat nbf exp jti prv tv`; time taken from the `Clock`
-- [ ] Token extractor: `Authorization` header (tymon parsing), `?token=`, body `token`
-- [ ] `JwtAuthGuard` + `TokenVersionGuard` + `@CurrentUser()`; `iat` in the future rejected
-- [ ] Deny list in the `denied_tokens` table: add, check, prune
-- [ ] Login with validation, bcrypt, `$2y$` support and cost 12
-- [ ] Login limiter: Laravel `RateLimiter` port on Redis (Lua `hit`, timer key), 5 failures per 60 s, key is transliterated `email|ip()`, in-memory `Clock` store for unit tests
-- [ ] Refresh (expiry ignored, 7-day window, keeps `iat`/`sub`/`tv`), logout, `GET /me`
-- [ ] `PATCH /me`, `PUT /password`, `DELETE /me` (transactional cascade + file cleanup)
-- [ ] Password policy: production rules + HIBP, elsewhere 8 characters minimum
-- [ ] Forgot/reset password: broker port, enumeration-safe responses, 6/min per IP through the `password` throttler (one counter for both routes)
-- [ ] `npm run user:create`
-- [ ] Switch `actingAs` to the real signer
-- [ ] Port `AuthControllerTest` (16), `AccountControllerTest` (11), `PasswordResetControllerTest` (6), `CreateUserCommandTest` (3)
-- [ ] Contract cases for auth, green against Laravel, then Nest
+- [x] Token claims compatible with tymon, in tymon's order: `iss iat exp nbf jti sub prv tv`; time taken from the `Clock` (`auth/token.service.ts`)
+- [x] Token extractor: `Authorization` header (tymon parsing: last `bearer`, cut at `,`), `?token=`, input `token`; `""`/`"0"` skipped as PHP does
+- [x] `@Authenticated()` = `JwtAuthGuard` + `TokenVersionGuard`, `@CurrentUser()` / `@CurrentToken()`; `iat` in the future rejected in both modes; `prv` checked when present
+- [x] Deny list in the `denied_tokens` table: add (whole minutes to `max(exp, iat + refresh TTL) + 1 min`), check, prune (`DenyListService.prune()`; the hourly job comes in phase 6)
+- [x] Login with validation, bcrypt, `$2y$` support and `BCRYPT_ROUNDS` (12; tests use 4, as Laravel's phpunit.xml does)
+- [x] Login limiter: Laravel `RateLimiter` port on Redis (Lua `hit`, timer key holding the window's end), 5 failures per 60 s, key is `cleanRateLimiterKey(transliterate(email|ip()))`, hashed under `login:`; in-memory `Clock` store bound in `createApp()`
+- [x] Refresh (expiry ignored, 7-day window, keeps `iat`/`sub`/`prv`/`tv`, revoked → new token denied too), logout, `GET /me`
+- [x] `PATCH /me`, `PUT /password`, `DELETE /me` (transactional cascade with `IN (subquery)` + file cleanup after commit)
+- [x] Password policy: production rules + HIBP (k-anonymity, unreachable = not compromised), elsewhere 8 characters minimum
+- [x] Forgot/reset password: broker port (bcrypt-hashed token, 60 min expiry, 60 s per-user throttle, 200 ms timebox), enumeration-safe responses, 6/min per IP through the `password` throttler (one counter for both routes)
+- [x] `npm run user:create` (prompts for missing options, password not echoed)
+- [x] Switch `actingAs` to the real signer (`t.apiToken()`)
+- [x] Port `AuthControllerTest` (16), `AccountControllerTest` (11), `PasswordResetControllerTest` (6), `CreateUserCommandTest` (3). One case, "authenticates API requests with the token", is `it.skip` until `GET /forms` exists (phase 5a)
+- [x] Contract cases for auth (27), green against Laravel, then Nest (36/36 overall)
+- [x] Mail (`Mailer`: log / smtp / postmark) and storage (`Disk`: local / in-memory) abstractions, needed early by the reset email and account deletion; phase 6 adds the `NewFormEntry` mail and export writes
 
 **Done when**
-- [ ] All §5.14 tests pass
-- [ ] A real `$2y$` hash from Laravel verifies
-- [ ] The contract suite authenticates through `/auth/login`
-- [ ] All three token sources work
+- [x] All §5.14 tests pass (35 cases on SQLite and Postgres; one skipped until phase 5a, see above)
+- [x] A real `$2y$` hash from Laravel verifies (`password-hasher.spec.ts`, cost 12 and 4)
+- [x] The contract suite authenticates through `/auth/login` (both servers seed users with `user:create`)
+- [x] All three token sources work (e2e and contract)
 
 ## Phase 5a: Forms (ch. 3 §3.3–3.4, ch. 4 §4.1 and §4.5)
 
@@ -232,3 +233,4 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - 2026-10-03: Phase 1 scaffolded. Nest 12 has shipped, and the latest `@nestjs/*` majors need it or are ESM-only (Jest can't load them). `@nest-lab/throttler-storage-redis` doesn't support Nest 12, so we pinned Nest 11 lines: `config@4`, `event-emitter@3`, `jwt@11`, `typeorm@11`, `bullmq@11`, `swagger@11`, plus `typeorm@0.3` (unpinned resolves to 1.x) and `faker@9` (10 is ESM-only). `bcrypt@6` rejects `$2y$` hashes, so phase 4 must rewrite them to `$2b$`; checked against a real PHP hash. Laravel root routes probed: non-GET `/` → 419 CSRF; 404/405 messages copied.
 - 2026-10-03: Phase 2 done, plus the phase 0 `Clock`, `createApp()` and factories. Findings: (1) entity decorators read `DB_TYPE` at import, before `ConfigModule` loads `.env`, so every entrypoint now imports `config/load-env.ts` first. (2) Jest `setupFiles` can't set the process timezone (the sandbox `process.env` is a copy); the Postgres tests had been running in local time. `TZ=UTC` is now set in a Jest `globalSetup`, with a test that checks it. (3) A TypeORM column transformer on a timestamp or JSON-string column makes every `save()` look like a change, which would bump `updated_at`. Truncation moved into `TimestampSubscriber`, and `user_agent_display` is `simple-json` (`text` on Postgres, a deviation from Laravel's `varchar(255)`). (4) PHP's `round()` differs from `Math.round(x*100)/100` (`0.285` → `0.29`), so `phpRound` is ported and tested against PHP output. (5) The TypeORM SQLite driver has no `char` type, and its schema diff reports false rebuilds, so the drift check stays Postgres-only. Factories moved to `src/database/factories/`.
 - 2026-10-04: Phase 3 done. All behaviour is checked against PHP output (messages, timezones, a 5,148-case validation corpus, `parse_str()`, `Str::trim`, 75 paginator envelopes, signed URLs) or the running reference app. Guide corrections: separators in `meta.links` have no `page` key; 413 says "The POST data is too large."; 500 says "Server Error" (no period); signed URLs use the raw `APP_KEY`; empty passwords still become `null`; Laravel's `date` rule rejects relative dates. New parity items: the `_method` override, form bodies parsed only for POST/PUT/PATCH/DELETE, PHP's variable parsing. Bugs found: nest-lab's throttler script reopens the window under bursts (replaced); an early 413 made clients fail with EPIPE (body now drained); Herd's PHP on port 8001 had made a contract run test the wrong server (the runner now refuses busy ports, and Nest uses 8011).
+- 2026-10-04: Phase 4 done. Checked against tymon's and Laravel's source and the running reference app (27 new contract cases, green on both servers). Findings: (1) tymon carries `prv` into refreshed tokens although only `tv` is configured as persistent (its payload factory keeps claims between calls); the contract suite pins the claim list. (2) tymon back-fills missing default claims on decode, so only `sub` is really required; the port requires all six (only observable with the secret). (3) The reset email subject is "Reset your password" in current Laravel, not "Reset Password Notification"; the link uses RFC 1738 encoding. (4) Laravel's broker timeboxes forgot/reset to 200 ms; ported. (5) `Str::transliterate` is approximated (voku's full tables aren't ported; only the hashed limiter key is affected). (6) `RouterModule` prefixes only the registered module, so `/api/v1` feature modules are listed as `children` (`API_V1_MODULES`). (7) Jest runs e2e files in parallel; each suite that flushes Redis now uses its own database (`test/support/redis.ts`: 15 rate limits, 13 password reset, 12 auth). Locally the project's Redis runs on 6380 (`REDIS_URL=redis://127.0.0.1:6380/15`), because another project holds 6379.

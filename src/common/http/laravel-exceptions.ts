@@ -1,4 +1,5 @@
 import { HttpException } from '@nestjs/common';
+import { summarize } from '../validation/messages';
 
 /**
  * Exceptions rendered with Laravel's bodies and headers by
@@ -37,13 +38,29 @@ export class ThrottleRequestsException extends LaravelHttpException {
   }
 }
 
-/** 422 with Laravel's validation body. */
+/** 422 (or `->status()`, e.g. 429 on login) with Laravel's validation body. */
 export class ValidationException extends LaravelHttpException {
   constructor(
     message: string,
     readonly errors: Map<string, string[]>,
+    status = 422,
   ) {
-    super(422, message);
+    super(status, message);
+  }
+
+  /** `ValidationException::withMessages()`: one message per attribute. */
+  static withMessages(
+    messages: Record<string, string>,
+    status = 422,
+  ): ValidationException {
+    const errors = new Map(
+      Object.entries(messages).map(([key, message]) => [key, [message]]),
+    );
+    return new ValidationException(
+      summarize([...errors.values()].flat()),
+      errors,
+      status,
+    );
   }
 
   /** `{"message": …, "errors": {"field": ["…"]}}` with keys in Laravel's order. */

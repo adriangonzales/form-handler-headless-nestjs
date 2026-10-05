@@ -24,7 +24,7 @@ interface RouterLayer {
  * Renders every error as Laravel's JSON shape, `{ "message": ... }`, whatever
  * the request's `Accept` header (ch. 1 §1.4, ch. 3 §3.2).
  *
- * - `ValidationException`: 422 `{message, errors}`.
+ * - `ValidationException`: 422 (or its status) `{message, errors}`.
  * - `LaravelHttpException`s: their status, message and headers (401, 403,
  *   409, 410, 429 with `Retry-After`, …).
  * - Routing misses: 404, or 405 with `Allow`.
@@ -48,7 +48,7 @@ export class LaravelExceptionFilter implements ExceptionFilter {
     }
 
     if (exception instanceof ValidationException) {
-      res.status(422).json(exception.body());
+      res.status(exception.getStatus()).json(exception.body());
       return;
     }
 

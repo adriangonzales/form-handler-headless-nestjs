@@ -20,6 +20,7 @@ import { FormNotification } from '../../form-notifications/form-notification.ent
 import { NotificationType } from '../../form-notifications/notification-type';
 import type { FormField } from '../../forms/form-field';
 import { Form } from '../../forms/form.entity';
+import { isBcryptHash } from '../../users/password-hasher';
 import { User } from '../../users/user.entity';
 import { FORM_NAMES } from './form-names';
 
@@ -38,14 +39,21 @@ export class Factories {
     private readonly clock: Clock,
   ) {}
 
+  /** A plain `password` override is hashed, as the model's `hashed` cast does. */
   async user(overrides: DeepPartial<User> = {}): Promise<User> {
+    const { password } = overrides;
     return this.save(User, {
       name: faker.person.fullName(),
       email: this.uniqueSafeEmail(),
       emailVerifiedAt: this.clock.now(),
-      password: Factories.password(),
       rememberToken: faker.string.alphanumeric(10),
       ...overrides,
+      password:
+        password === undefined
+          ? Factories.password()
+          : isBcryptHash(password)
+            ? password
+            : hashSync(password, Factories.rounds()),
     });
   }
 
@@ -190,12 +198,17 @@ export class Factories {
     }
   }
 
-  /** `Hash::make('password')`. Tests use cost 4, as Laravel's phpunit.xml does. */
+  /** `Hash::make('password')`. */
   private static password(): string {
     return (Factories.passwordHash ??= hashSync(
       'password',
-      process.env.NODE_ENV === 'test' ? 4 : 12,
+      Factories.rounds(),
     ));
+  }
+
+  /** `BCRYPT_ROUNDS`: tests use 4, as Laravel's phpunit.xml does. */
+  private static rounds(): number {
+    return Number(process.env.BCRYPT_ROUNDS ?? 12);
   }
 }
 

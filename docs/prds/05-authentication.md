@@ -29,7 +29,7 @@ Verify every token for:
 - the signature;
 - `exp` and `nbf`, with no leeway;
 - `iat` not in the future (tymon rejects that);
-- the presence of `iss`, `iat`, `exp`, `nbf`, `sub` and `jti`;
+- the presence of `iss`, `iat`, `exp`, `nbf`, `sub` and `jti` (tymon's payload factory actually back-fills missing defaults, so only `sub` is enforced there; the port checks all six, which only matters for tokens signed with the secret by someone else);
 - the `prv` value;
 - a `jti` that isn't on the deny list.
 
@@ -73,7 +73,7 @@ All under `/api/v1/auth`.
 
 1. Read the bearer token and verify its signature, `prv` and deny-list status. **Ignore `exp`.** A missing or bad token → 401.
 2. Reject the token with 401 if `now > iat + JWT_REFRESH_TTL` minutes (default 10080 = 7 days).
-3. Put the old `jti` on the deny list, and issue a new token with the **same `iat`, `sub` and `tv`**, and a fresh `jti`, `nbf` and `exp`.
+3. Put the old `jti` on the deny list, and issue a new token with the **same `iat`, `sub`, `prv` and `tv`**, and a fresh `iss` (the refresh URL), `jti`, `nbf` and `exp`. (tymon only lists `tv` as persistent, but `prv` survives through its payload factory; the contract suite checks the claim list against Laravel.)
 4. Then load the user by `sub`. If the user is gone, or `tv` is behind the user's `token_version`, put the **new** token's `jti` on the deny list too, and return 401.
 
 **Logout:** put the token's `jti` on the deny list, then return 204.
@@ -82,7 +82,7 @@ All under `/api/v1/auth`.
 
 ## 5.4 Login throttling
 
-- Key: `lower(email) + "|" + ip`, transliterated to ASCII (`Str::transliterate`). `ip` is Laravel's `$request->ip()`: the first entry of the Symfony-ordered list in ch. 3 §3.5, not Express's `req.ip`.
+- Key: `lower(email) + "|" + ip`, transliterated to ASCII (`Str::transliterate`). The port approximates voku's tables (NFKD, a few special letters, `?` for the rest; CJK differs). The key is hashed and never leaves the server, so the only effect is which emails share a counter. `ip` is Laravel's `$request->ip()`: the first entry of the Symfony-ordered list in ch. 3 §3.5, not Express's `req.ip`.
 - Every failed login increments a counter with a 60-second decay window.
 - When the counter reaches 5, respond 429 **before** checking credentials: `{"message":"Too many login attempts. Please try again in N seconds.","errors":{"email":["Too many login attempts. Please try again in N seconds."]}}`, where N is the seconds left in the window.
 - A successful login deletes the counter.
@@ -154,7 +154,7 @@ Port Laravel's password broker:
 2. If a user has that email, and the user has no reset token created in the last 60 seconds, generate a random 64-character token, store its bcrypt hash in `password_reset_tokens` (replacing any existing row), and email the link `{PASSWORD_RESET_URL}?token={token}&email={email}` (query-encoded).
 3. **Always** respond 200 `{"message":"If an account exists for that email, a password reset link has been sent."}`, whether the user exists, the request was throttled or the mail was sent. This stops attackers enumerating emails.
 
-The email mirrors Laravel's `ResetPassword` notification: subject "Reset Password Notification", a "Reset Password" button with the link, and a note that the link expires in 60 minutes. The wording isn't contractual.
+The email mirrors Laravel's `ResetPassword` notification: subject "Reset your password" (the framework's current wording), a "Reset Password" button with the link, and a note that the link expires in 60 minutes. The wording isn't contractual. The link's query string uses PHP's default `http_build_query` encoding (RFC 1738: `+` for spaces, `~` encoded). Like Laravel's broker, forgot and reset take at least 200 ms (`Timebox`), so timing doesn't reveal whether an email exists; a successful reset returns early.
 
 **Reset** (`POST /auth/reset-password`):
 

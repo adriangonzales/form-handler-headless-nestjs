@@ -13,6 +13,8 @@ export interface AppConfig {
   passwordResetUrl: string;
   /** Minutes a signed export download URL stays valid. */
   exportDownloadUrlTtl: number;
+  /** bcrypt cost for new hashes (`BCRYPT_ROUNDS`; tests use 4, as Laravel's phpunit.xml does). */
+  bcryptRounds: number;
 }
 
 export function readAppConfig(r: EnvReader): AppConfig {
@@ -30,6 +32,7 @@ export function readAppConfig(r: EnvReader): AppConfig {
     key,
     passwordResetUrl: r.url('PASSWORD_RESET_URL', `${url}/reset-password`),
     exportDownloadUrlTtl: r.int('EXPORT_DOWNLOAD_URL_TTL', 5, 1),
+    bcryptRounds: r.int('BCRYPT_ROUNDS', 12, 4),
   };
 }
 

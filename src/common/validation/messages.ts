@@ -18,6 +18,14 @@ export function template(snakeRule: string, sizeType?: SizeType): string {
   return `validation.${snakeRule}`;
 }
 
+/** A nested key such as `validation.password.mixed`. */
+export function nestedTemplate(rule: string, key: string): string {
+  const entry = TEMPLATES[rule];
+  return typeof entry === 'object' && typeof entry[key] === 'string'
+    ? entry[key]
+    : `validation.${rule}.${key}`;
+}
+
 /** `ValidationException::summarize()`: the first message plus "(and N more error[s])". */
 export function summarize(messages: string[]): string {
   if (messages.length === 0) return 'The given data was invalid.';
