@@ -14,6 +14,16 @@ import {
 } from '@nestjs/common';
 import { RouterModule } from '@nestjs/core';
 import type { Request } from 'express';
+import type { ObjectLiteral } from 'typeorm';
+import { Authenticated } from '../../src/auth/auth.guards';
+import { AuthModule } from '../../src/auth/auth.module';
+import {
+  OwnedForm,
+  OwnsForm,
+  RouteModel,
+  WithTrashed,
+} from '../../src/forms/form-ownership.guard';
+import type { Form } from '../../src/forms/form.entity';
 import { requestInput } from '../../src/common/http/request-input';
 import { RateLimited } from '../../src/common/rate-limit/rate-limited.decorator';
 import { Throttler } from '../../src/common/rate-limit/throttlers';
@@ -107,7 +117,45 @@ class ProbeLimitsController {
   }
 }
 
-@Module({ controllers: [ProbeController, ProbeLimitsController] })
+/** Shallow child routes bound by `FormOwnershipGuard`, before their phases land. */
+@Controller('probe-owned')
+@Authenticated()
+class ProbeOwnershipController {
+  @Get('entries/:entry')
+  @OwnsForm()
+  entry(@RouteModel() model: ObjectLiteral, @OwnedForm() form: Form) {
+    return { id: model.id as string, form: form.id };
+  }
+
+  @Post('entries/:entry/restore')
+  @OwnsForm()
+  @WithTrashed()
+  @HttpCode(200)
+  restoreEntry(@RouteModel() model: ObjectLiteral, @OwnedForm() form: Form) {
+    return { id: model.id as string, form: form.id };
+  }
+
+  @Get('notifications/:notification')
+  @OwnsForm()
+  notification(@RouteModel() model: ObjectLiteral, @OwnedForm() form: Form) {
+    return { id: model.id as string, form: form.id };
+  }
+
+  @Get('exports/:export')
+  @OwnsForm()
+  entryExport(@RouteModel() model: ObjectLiteral, @OwnedForm() form: Form) {
+    return { id: model.id as string, form: form.id };
+  }
+}
+
+@Module({
+  imports: [AuthModule],
+  controllers: [
+    ProbeController,
+    ProbeLimitsController,
+    ProbeOwnershipController,
+  ],
+})
 class ProbeModule {}
 
 /** Mounts the probe at `/api/v1/probe`. */

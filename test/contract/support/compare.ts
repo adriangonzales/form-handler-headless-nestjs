@@ -42,3 +42,19 @@ export function normalise<T>(value: T, keepIds: string[] = []): T {
     .replace(/(expires=)\d+/g, '$1<expires>');
   return JSON.parse(json) as T;
 }
+
+/** Laravel's 422 body for these errors: the first message plus "(and N more errors)". */
+export function validationBody(errors: Record<string, string[]>): {
+  message: string;
+  errors: Record<string, string[]>;
+} {
+  const messages = Object.values(errors).flat();
+  const more = messages.length - 1;
+  return {
+    message:
+      more === 0
+        ? messages[0]
+        : `${messages[0]} (and ${more} more ${more === 1 ? 'error' : 'errors'})`,
+    errors,
+  };
+}

@@ -124,6 +124,16 @@ function parseRule(rule: RuleSpec): ParsedRule {
   return { name: studlyName, params, raw: rule };
 }
 
+/**
+ * Whether the engine can run a string rule: its name is looked up
+ * case-insensitively, as PHP's method lookup is. Empty rules are skipped by
+ * the engine, so they count as supported. Used by F7 (ch. 4 §4.5).
+ */
+export function isSupportedRule(rule: string): boolean {
+  const { name } = parseRule(rule);
+  return name === '' || RULES[name.toLowerCase()] !== undefined;
+}
+
 function explodeExplicit(rules: RuleSpec[] | string): RuleSpec[] {
   return typeof rules === 'string' ? rules.split('|') : rules;
 }

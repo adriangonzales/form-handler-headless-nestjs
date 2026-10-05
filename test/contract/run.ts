@@ -30,7 +30,13 @@ const ACCOUNT_USER: ServerUser = {
   email: 'contract-account@example.com',
   password: 'account-password-1',
 };
-const USERS = [USER, ACCOUNT_USER];
+/** Owns the forms the ownership (403) cases target. */
+const OTHER_USER: ServerUser = {
+  name: 'Other User',
+  email: 'contract-other@example.com',
+  password: 'other-password-1',
+};
+const USERS = [USER, ACCOUNT_USER, OTHER_USER];
 
 async function startNest(port: number): Promise<RunningServer> {
   const tmp = mkdtempSync(join(tmpdir(), 'nest-contract-'));
@@ -134,6 +140,8 @@ async function main(): Promise<void> {
           CONTRACT_PASSWORD: USER.password,
           CONTRACT_ACCOUNT_EMAIL: ACCOUNT_USER.email,
           CONTRACT_ACCOUNT_PASSWORD: ACCOUNT_USER.password,
+          CONTRACT_OTHER_EMAIL: OTHER_USER.email,
+          CONTRACT_OTHER_PASSWORD: OTHER_USER.password,
         },
       },
     );

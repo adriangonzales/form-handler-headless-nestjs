@@ -7,7 +7,7 @@ export interface FormField {
   /** Input name; defaults to `id`. */
   name?: string | null;
   /** Laravel rule strings. */
-  rules?: string[] | string;
+  rules?: string[] | string | null;
 }
 
 /**

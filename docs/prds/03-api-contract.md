@@ -38,7 +38,7 @@ Requests and responses are JSON. All routes are under `/api/v1`. They require a 
 
 The `/auth/*` routes (login, refresh, logout, me, profile, password, password reset) are specified in chapter 5. Outside `/api/v1` there are `GET /up` and the `/` redirect (ch. 1 §1.4).
 
-Entries and notifications use Laravel's "shallow" nesting: create and list go through the form, while show, update, delete and restore use the child's own ID. Register both `@Put()` and `@Patch()` on the same handler.
+Entries and notifications use Laravel's "shallow" nesting: create and list go through the form, while show, update, delete and restore use the child's own ID. Serve PUT and PATCH from one implementation. Nest can't stack `@Put()` and `@Patch()` on a single handler (the second overwrites the method metadata), so add a `@Patch()` handler that delegates to the `@Put()` one.
 
 Every JWT route also runs the token-version check (ch. 5 §5.6).
 

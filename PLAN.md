@@ -99,26 +99,26 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - [x] Forgot/reset password: broker port (bcrypt-hashed token, 60 min expiry, 60 s per-user throttle, 200 ms timebox), enumeration-safe responses, 6/min per IP through the `password` throttler (one counter for both routes)
 - [x] `npm run user:create` (prompts for missing options, password not echoed)
 - [x] Switch `actingAs` to the real signer (`t.apiToken()`)
-- [x] Port `AuthControllerTest` (16), `AccountControllerTest` (11), `PasswordResetControllerTest` (6), `CreateUserCommandTest` (3). One case, "authenticates API requests with the token", is `it.skip` until `GET /forms` exists (phase 5a)
+- [x] Port `AuthControllerTest` (16), `AccountControllerTest` (11), `PasswordResetControllerTest` (6), `CreateUserCommandTest` (3). "authenticates API requests with the token" was skipped until `GET /forms` existed; enabled in phase 5a
 - [x] Contract cases for auth (27), green against Laravel, then Nest (36/36 overall)
 - [x] Mail (`Mailer`: log / smtp / postmark) and storage (`Disk`: local / in-memory) abstractions, needed early by the reset email and account deletion; phase 6 adds the `NewFormEntry` mail and export writes
 
 **Done when**
-- [x] All §5.14 tests pass (35 cases on SQLite and Postgres; one skipped until phase 5a, see above)
+- [x] All §5.14 tests pass (36 cases on SQLite and Postgres)
 - [x] A real `$2y$` hash from Laravel verifies (`password-hasher.spec.ts`, cost 12 and 4)
 - [x] The contract suite authenticates through `/auth/login` (both servers seed users with `user:create`)
 - [x] All three token sources work (e2e and contract)
 
 ## Phase 5a: Forms (ch. 3 §3.3–3.4, ch. 4 §4.1 and §4.5)
 
-- [ ] `FormOwnershipGuard` for `:form`, `:entry`, `:notification` and `:export`, with a `@WithTrashed()` route decorator; child of a deleted form → 403
-- [ ] List (counts cast to numbers, sort, `filter[active]`, `per_page`), create, show, update, delete, restore, duplicate
-- [ ] `FormSettings` rules; schema list and item rules (wildcards)
-- [ ] Honeypot name: generation before validation, clash check after
-- [ ] `buildRules()` and port `BuildValidationRulesTest` (3)
-- [ ] F7: unsupported rule names → 422 on `schema.N.rules`
-- [ ] Port `FormControllerTest` (41) and `GenerateHoneypotNameTest` (2)
-- [ ] Contract cases, with F7 tagged
+- [x] `FormOwnershipGuard` for `:form`, `:entry`, `:notification` and `:export` (`forms/form-ownership.guard.ts`: `@OwnsForm()`, `@WithTrashed()`, `@OwnedForm()`, `@RouteModel()`); child of a deleted form → 403. Child bindings are tested through probe routes until 5b/5c add the real ones
+- [x] List (counts cast to numbers, sort, `filter[active]`, `per_page`), create, show, update, delete, restore, duplicate
+- [x] `FormSettings` rules; schema list and item rules (wildcards)
+- [x] Honeypot name: generation before validation, clash check after
+- [x] `buildRules()` and port `BuildValidationRulesTest` (3)
+- [x] F7: unsupported rule names → 422 on `schema.N.rules`
+- [x] Port `FormControllerTest` (41) and `GenerateHoneypotNameTest` (2)
+- [x] Contract cases, with F7 tagged (36 new, 71/71 overall on both servers)
 
 ## Phase 5b: Entries and public submissions (ch. 3 §3.5–3.6, ch. 4)
 
@@ -234,3 +234,5 @@ Tracks the rebuild described in [`docs/prds/README.md`](docs/prds/README.md). Ea
 - 2026-10-03: Phase 2 done, plus the phase 0 `Clock`, `createApp()` and factories. Findings: (1) entity decorators read `DB_TYPE` at import, before `ConfigModule` loads `.env`, so every entrypoint now imports `config/load-env.ts` first. (2) Jest `setupFiles` can't set the process timezone (the sandbox `process.env` is a copy); the Postgres tests had been running in local time. `TZ=UTC` is now set in a Jest `globalSetup`, with a test that checks it. (3) A TypeORM column transformer on a timestamp or JSON-string column makes every `save()` look like a change, which would bump `updated_at`. Truncation moved into `TimestampSubscriber`, and `user_agent_display` is `simple-json` (`text` on Postgres, a deviation from Laravel's `varchar(255)`). (4) PHP's `round()` differs from `Math.round(x*100)/100` (`0.285` → `0.29`), so `phpRound` is ported and tested against PHP output. (5) The TypeORM SQLite driver has no `char` type, and its schema diff reports false rebuilds, so the drift check stays Postgres-only. Factories moved to `src/database/factories/`.
 - 2026-10-04: Phase 3 done. All behaviour is checked against PHP output (messages, timezones, a 5,148-case validation corpus, `parse_str()`, `Str::trim`, 75 paginator envelopes, signed URLs) or the running reference app. Guide corrections: separators in `meta.links` have no `page` key; 413 says "The POST data is too large."; 500 says "Server Error" (no period); signed URLs use the raw `APP_KEY`; empty passwords still become `null`; Laravel's `date` rule rejects relative dates. New parity items: the `_method` override, form bodies parsed only for POST/PUT/PATCH/DELETE, PHP's variable parsing. Bugs found: nest-lab's throttler script reopens the window under bursts (replaced); an early 413 made clients fail with EPIPE (body now drained); Herd's PHP on port 8001 had made a contract run test the wrong server (the runner now refuses busy ports, and Nest uses 8011).
 - 2026-10-04: Phase 4 done. Checked against tymon's and Laravel's source and the running reference app (27 new contract cases, green on both servers). Findings: (1) tymon carries `prv` into refreshed tokens although only `tv` is configured as persistent (its payload factory keeps claims between calls); the contract suite pins the claim list. (2) tymon back-fills missing default claims on decode, so only `sub` is really required; the port requires all six (only observable with the secret). (3) The reset email subject is "Reset your password" in current Laravel, not "Reset Password Notification"; the link uses RFC 1738 encoding. (4) Laravel's broker timeboxes forgot/reset to 200 ms; ported. (5) `Str::transliterate` is approximated (voku's full tables aren't ported; only the hashed limiter key is affected). (6) `RouterModule` prefixes only the registered module, so `/api/v1` feature modules are listed as `children` (`API_V1_MODULES`). (7) Jest runs e2e files in parallel; each suite that flushes Redis now uses its own database (`test/support/redis.ts`: 15 rate limits, 13 password reset, 12 auth). Locally the project's Redis runs on 6380 (`REDIS_URL=redis://127.0.0.1:6380/15`), because another project holds 6379.
+- 2026-10-05: Phase 5a done. Checked against the reference app (36 new contract cases, green on both servers with the same expectations) and PHP output. Findings: (1) spatie's `FormSettings::getValidationRules()` emits rules only for the keys sent, except `domains` and `honeypot_name` (always), with `domains.*` last; the order decides error order. (2) Nest can't put `@Put()` and `@Patch()` on one handler: the second overwrites the method metadata. Each update route has a PATCH handler that delegates (guide ch. 3 §3.1 corrected). (3) An empty `validated()` is PHP's `[]`, a JS array, so `input.sort` read `Array.prototype.sort`; controllers read optional input through `asBag()`. (4) Laravel expands a scalar `schema` item first (`array_merge` keeps its dotted key's place) and reports `required` on its wildcard children; the engine already matched, and a contract case pins it. (5) `Str::limit` counts display columns (`mb_strwidth`, wide CJK and emoji = 2) and `rtrim`s before appending; ported with PHP's width table. (6) Updates leave `updated_at` alone when nothing changed, and restoring a live form is a no-op, as Eloquent does. (7) The ported tests mint a token per request (`actingAs`), because Laravel's guard-based `actingAs` survives time travel and a JWT doesn't. (8) The contract runner seeds a third user that owns the 403 targets. (9) The form list's entry counts come back from Postgres as strings and are cast.
+

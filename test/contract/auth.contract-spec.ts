@@ -1,4 +1,4 @@
-import { expectSameJson, normalise } from './support/compare';
+import { expectSameJson, normalise, validationBody } from './support/compare';
 import { http } from './support/http';
 import { loginToken } from './support/session';
 import { BASE_URL, describeFeature } from './support/target';
@@ -19,18 +19,6 @@ async function tokenFor(email: string, password: string): Promise<string> {
   const res = await login(email, password);
   expect(res.status).toBe(200);
   return (res.body as { access_token: string }).access_token;
-}
-
-function validationBody(errors: Record<string, string[]>) {
-  const messages = Object.values(errors).flat();
-  const more = messages.length - 1;
-  return {
-    message:
-      more === 0
-        ? messages[0]
-        : `${messages[0]} (and ${more} more ${more === 1 ? 'error' : 'errors'})`,
-    errors,
-  };
 }
 
 const PRV = '23bd5c8949f600adb39e701c400872db7a5976f7';

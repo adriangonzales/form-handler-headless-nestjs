@@ -129,7 +129,7 @@ describe('AuthControllerTest', () => {
   });
 
   // TODO(phase 5a): runs once GET /forms exists.
-  it.skip('authenticates API requests with the token', async () => {
+  it('authenticates API requests with the token', async () => {
     const token = await loginToken();
 
     await json(t.http, 'get', '/api/v1/forms', undefined, token).expect(200);
