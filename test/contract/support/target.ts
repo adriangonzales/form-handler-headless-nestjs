@@ -18,7 +18,13 @@ export const TARGET: Target =
  * case; the Nest run skips cases for features not listed here yet. Add each
  * feature as its plan phase lands.
  */
-const NEST_FEATURES = new Set<Feature>(['core', 'auth', 'forms']);
+const NEST_FEATURES = new Set<Feature>([
+  'core',
+  'auth',
+  'forms',
+  'entries',
+  'submissions',
+]);
 
 export type Feature =
   | 'core'

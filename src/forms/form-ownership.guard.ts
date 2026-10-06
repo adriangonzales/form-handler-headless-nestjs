@@ -163,3 +163,34 @@ export const RouteModel = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): ObjectLiteral =>
     ownership(ctx.switchToHttp().getRequest<Request>()).model,
 );
+
+/** `FormPolicy::submit()`: the form must be active. */
+export function assertAcceptsSubmissions(form: Form): void {
+  if (!form.active)
+    throw new AuthorizationException('This form is not accepting submissions.');
+}
+
+/** Runs after `FormOwnershipGuard`: the owned form must be active. */
+@Injectable()
+export class FormAcceptsSubmissionsGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    assertAcceptsSubmissions(
+      ownedForm(context.switchToHttp().getRequest<Request>()),
+    );
+    return true;
+  }
+}
+
+/**
+ * `FormEntryStoreRequest::authorize()`: the owner (403 "You do not own this
+ * form."), then an active form (403 "This form is not accepting submissions.").
+ */
+export function OwnsActiveForm(): MethodDecorator & ClassDecorator {
+  return applyDecorators(
+    UseGuards(FormOwnershipGuard, FormAcceptsSubmissionsGuard),
+    ApiNotFoundResponse({ description: 'Unknown or deleted ID.' }),
+    ApiForbiddenResponse({
+      description: 'Not the owner, or the form is inactive.',
+    }),
+  );
+}

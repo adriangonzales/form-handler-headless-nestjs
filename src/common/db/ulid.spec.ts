@@ -24,3 +24,10 @@ describe('isUlid (Str::isUlid)', () => {
     expect(isUlid(value)).toBe(expected);
   });
 });
+
+describe('newUlid ordering', () => {
+  it('sorts in creation order within a millisecond, as Symfony Ulid does', () => {
+    const ids = Array.from({ length: 1000 }, () => newUlid());
+    expect([...ids].sort()).toEqual(ids);
+  });
+});

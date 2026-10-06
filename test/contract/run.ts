@@ -7,6 +7,7 @@
  * Or point it at any running server yourself:
  *   CONTRACT_BASE_URL=… CONTRACT_TARGET=laravel|nest CONTRACT_EMAIL=… CONTRACT_PASSWORD=… npm run test:contract
  */
+import Redis from 'ioredis';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -57,6 +58,11 @@ async function startNest(port: number): Promise<RunningServer> {
     TRUSTED_PROXIES: '127.0.0.1',
     PORT: String(port),
   };
+  // A fresh store, like Laravel's fresh database cache: rate-limit and
+  // login-limiter counters from a previous run would otherwise carry over.
+  const redis = new Redis(env.REDIS_URL as string);
+  await redis.flushdb();
+  await redis.quit();
   execFileSync(
     'node',
     [

@@ -113,7 +113,7 @@ Result against the dump supplied on 2026-10-03: all 15 forms have an empty schem
 - A whitespace-only string skips every non-implicit rule and passes through to `validated()` unchanged.
 - **Key order:** explicit attributes keep their rule-array position, and wildcard expansions are appended after them. `errors` and `validated()` both follow this, so `settings` comes before `schema.0.id`.
 - Wildcard attributes appear raw in messages (`schema.0.id`). Other names go through `Str::snake()` and then `_` → space, which turns a ULID key into `01 k6 b6 x z…`.
-- `distinct` flags every duplicate after the first. `array:keys` with an unknown key fails with the plain "must be an array" message.
+- `distinct` flags every duplicate, the first included (`schema.0.id` and `schema.1.id` for one repeated ID; checked against the reference app 2026-10-05). `array:keys` with an unknown key fails with the plain "must be an array" message.
 - An unknown rule name throws in Laravel (500). The engine throws `UnsupportedRuleError`, which is why F7 rejects such rules on save.
 
 The engine (`src/common/validation/`) matches all 5,148 single-rule cases and 54 scenarios (`test/unit/validation-corpus.spec.ts`).

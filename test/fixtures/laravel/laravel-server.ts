@@ -28,6 +28,11 @@ export const LARAVEL_PATH = resolve(
 export async function startLaravel(options: {
   port: number;
   users: ServerUser[];
+  /**
+   * Captures pass a base time: every request then sees it plus one second
+   * per request served, for deterministic timestamps. Without one the app
+   * runs on the real clock, which rate-limit windows need.
+   */
   clockBase?: number;
 }): Promise<RunningServer> {
   const baseUrl = `http://127.0.0.1:${options.port}`;
@@ -47,10 +52,10 @@ export async function startLaravel(options: {
     LOG_CHANNEL: 'stderr',
     TYPESAFE_API_KEY: '',
     TRUSTED_PROXIES: '127.0.0.1',
-    CAPTURE_CLOCK_FILE: join(tmp, 'clock'),
-    CAPTURE_CLOCK_BASE: String(
-      options.clockBase ?? Math.floor(Date.now() / 1000),
-    ),
+    ...(options.clockBase !== undefined && {
+      CAPTURE_CLOCK_FILE: join(tmp, 'clock'),
+      CAPTURE_CLOCK_BASE: String(options.clockBase),
+    }),
   };
   writeFileSync(env.DB_DATABASE as string, '');
   const artisan = (...args: string[]) =>

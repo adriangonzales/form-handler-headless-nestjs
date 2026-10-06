@@ -1,3 +1,4 @@
+import { isNumeric } from './php';
 /**
  * The parts of PHP's date handling the rules need:
  * - `parseDate()`: absolute dates `strtotime()` + `date_parse()` accept with a
@@ -265,4 +266,29 @@ export function formatDate(format: string, date: Date): string {
 export function parseDateTime(value: unknown): number | null {
   const parsed = parseDate(value);
   return parsed ? toTimestamp(parsed) : null;
+}
+
+/**
+ * Eloquent's `datetime` cast on write (`asDateTime()` then `fromDateTime()`):
+ * numbers and numeric strings are Unix seconds (so `20260102` is in 1970),
+ * anything else is parsed and stored as its **wall-clock** time, ignoring any
+ * offset (`03:04:05+02:00` is stored as `03:04:05`). Fractions are dropped.
+ * Takes values that already passed the `date` rule; checked against PHP.
+ */
+export function eloquentDateTime(value: unknown): Date | null {
+  if (value === null || value === undefined) return null;
+  if (isNumeric(value)) return new Date(Math.trunc(Number(value)) * 1000);
+  const parsed = parseDate(value);
+  if (parsed === null)
+    throw new Error(`Unparseable date: ${JSON.stringify(value)}`);
+  return new Date(
+    Date.UTC(
+      parsed.year,
+      parsed.month - 1,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+    ),
+  );
 }

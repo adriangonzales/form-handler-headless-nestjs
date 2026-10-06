@@ -1,4 +1,11 @@
-import { ulid } from 'ulid';
+import { monotonicFactory } from 'ulid';
+
+/**
+ * Monotonic, as Symfony's `Ulid::generate()` is: IDs made in the same
+ * millisecond still sort in creation order. Lists sort by a whole-second
+ * timestamp then `id`, so this keeps "oldest first" true within a second.
+ */
+const ulid = monotonicFactory();
 
 /** Model IDs are lowercase ULIDs, as Laravel's `HasUlids` generates them. */
 export function newUlid(): string {

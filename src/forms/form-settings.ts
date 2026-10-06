@@ -35,3 +35,72 @@ export function withSettingsDefaults(
   }
   return settings;
 }
+
+/**
+ * `parse_url($url, PHP_URL_HOST)`: `null` without an authority, `false` when
+ * PHP rejects it. Unlike WHATWG `URL`, it takes the host after the last `@`
+ * (so `https://a\@evil.com/` is `evil.com`), splits the port at the last
+ * `:`, accepts `//host`, and leaves Unicode hosts as written.
+ */
+export function phpUrlHost(url: string): string | null | false {
+  let rest: string;
+  const scheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.exec(url);
+  if (url.startsWith('//')) rest = url.slice(2);
+  else if (scheme && url.startsWith('//', scheme[0].length))
+    rest = url.slice(scheme[0].length + 2);
+  else return null;
+
+  const end = rest.search(/[/?#]/);
+  let host = end === -1 ? rest : rest.slice(0, end);
+  host = host.slice(host.lastIndexOf('@') + 1);
+  if (!host.endsWith(']')) {
+    const colon = host.lastIndexOf(':');
+    if (colon >= 0) {
+      const port = host.slice(colon + 1);
+      if (port !== '' && (!/^\d+$/.test(port) || Number(port) > 65535))
+        return false;
+      host = host.slice(0, colon);
+    }
+  }
+  return host === '' ? false : host;
+}
+
+/**
+ * `FormSettings::allowsReferer()`: with domains set, the Referer's host must
+ * equal one (case-insensitively), or end with `.example.org` for a
+ * `*.example.org` entry. A wildcard doesn't match the bare domain.
+ */
+export function allowsReferer(
+  settings: FormSettings,
+  referer: string | null | undefined,
+): boolean {
+  if (settings.domains === null || settings.domains.length === 0) return true;
+  const parsed = phpUrlHost(referer ?? '');
+  if (typeof parsed !== 'string' || parsed === '') return false;
+  const host = parsed.toLowerCase();
+  return settings.domains.some((entry) => {
+    const domain = entry.toLowerCase();
+    return domain.startsWith('*.')
+      ? host.endsWith(domain.slice(1))
+      : host === domain;
+  });
+}
+
+/**
+ * `FormSettings::honeypotTripped()`: the honeypot is on and the input has a
+ * value under its name. `null`, `""` and empty arrays count as empty.
+ */
+export function honeypotTripped(
+  settings: FormSettings,
+  input: Record<string, unknown>,
+): boolean {
+  if (!settings.honeypot_enabled || settings.honeypot_name === null)
+    return false;
+  const value = Object.hasOwn(input, settings.honeypot_name)
+    ? input[settings.honeypot_name]
+    : null;
+  if (value === null || value === undefined || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
+}

@@ -110,11 +110,11 @@ The JWT deny list (ch. 5 §5.5). It's a table rather than a cache, so clearing a
 | `form_id`                                               | char(26) FK → forms.id               |                                                             |
 | `input`                                                 | json null                            | Validated submission values                                 |
 | `ip`                                                    | varchar(255) null                    | Every client IP, comma-joined                               |
-| `ip_location_display`, `referer`, `user_agent`          | varchar(255) null                    | `ip_location_display` is never populated. `referer` is truncated to 255 |
+| `ip_location_display`, `referer`, `user_agent`          | varchar(255) null                    | `ip_location_display` is never populated. `referer` is truncated to 255, as Laravel does. The port also cuts `user_agent` (and `ip`) to 255: Laravel doesn't, and SQLite stores any length, but Postgres would reject the insert |
 | `user_agent_display`                                    | text null, holds JSON (`simple-json`) | `{platform, browser, browser_version}`. Laravel declares a `varchar(255)` and casts it to an array. Nest uses `text`, because a JSON-string transformer on a varchar would mark every save as a change (2026-10-03) |
 | `spam`                                                  | boolean null, entity default `false` | `null` = spam check hasn't decided                          |
 | `spam_score`                                            | numeric(3,2) default 0               | Use a transformer that reads it as a `number` and rounds to 2 decimals on write |
-| `spam_reason`                                           | varchar(255) null                    |                                                             |
+| `spam_reason`                                           | varchar(255) null                    | Cut to 255 on update in the port, for the same reason as `user_agent` |
 | `spam_checked_at`                                       | timestamp null                       | When the spam check finished (ch. 6)                        |
 | `starred`                                               | boolean default `false`              |                                                             |
 | `read_at`                                               | timestamp null                       | `null` = unread                                             |
